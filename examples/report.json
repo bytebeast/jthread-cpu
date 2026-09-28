@@ -1,0 +1,879 @@
+{
+  "schema": "https://raw.githubusercontent.com/bytebeast/jthread-cpu/main/schema/jthread-cpu-v1.schema.json",
+  "schema_version": "1.0.0",
+  "kind": "report",
+  "tool": {
+    "name": "jthread-cpu",
+    "version": "1.5.0"
+  },
+  "round": 1,
+  "rounds_planned": 1,
+  "generated_at": "2026-09-24 09:41:07",
+  "sampled_at": "2026-09-24T09:41:07",
+  "pid": 48213,
+  "ppid": null,
+  "cmdline": "examples/dump.txt",
+  "method": "files (top + jstack)",
+  "method_id": "offline-top",
+  "sample_window_s": 2.0,
+  "window_source": "top clock",
+  "cpu_count": null,
+  "capacity": {
+    "host_cpus": null,
+    "affinity_cpus": null,
+    "cgroup_quota_cores": null,
+    "capacity_cores": 8.0,
+    "source": "--cpus",
+    "cgroup_path": null
+  },
+  "cpu": {
+    "unit": "percent_of_one_core",
+    "total_pct": 221.7,
+    "total_cores": 2.217,
+    "pct_of_capacity": 27.71,
+    "process_pct": null,
+    "unattributed_pct": null
+  },
+  "total_thread_cpu_pct": 221.7,
+  "process": null,
+  "coverage": {
+    "threads_in_dump": 18,
+    "threads_with_cpu": 18,
+    "unmatched_native": 1
+  },
+  "deadlocks": [],
+  "deadlock_stacks": "",
+  "threads": [
+    {
+      "name": "order-worker-3",
+      "java_thread_number": 33,
+      "daemon": false,
+      "priority": 5,
+      "os_priority": 0,
+      "os_tid": 48290,
+      "nid": 48290,
+      "nid_hex": "0xbca2",
+      "nid_as_printed": "0xbca2",
+      "jvm_tid": "0x00007f3a48000021",
+      "cumulative_cpu_ms": 2811904.5,
+      "elapsed_s": 86412.04,
+      "state": "RUNNABLE",
+      "state_detail": "",
+      "os_state": "runnable",
+      "jvm_internal": false,
+      "top_frame": "java.util.regex.Pattern$Curly.match0(java.base@17.0.12/Pattern.java:4508)",
+      "app_frame": "com.acme.shop.pricing.CouponValidator.isValid(CouponValidator.java:88)",
+      "stack": [
+        "at java.util.regex.Pattern$Curly.match0(java.base@17.0.12/Pattern.java:4508)",
+        "at java.util.regex.Pattern$Curly.match(java.base@17.0.12/Pattern.java:4452)",
+        "at java.util.regex.Pattern$GroupHead.match(java.base@17.0.12/Pattern.java:4917)",
+        "at java.util.regex.Matcher.find(java.base@17.0.12/Matcher.java:774)",
+        "at com.acme.shop.pricing.CouponValidator.isValid(CouponValidator.java:88)",
+        "at com.acme.shop.pricing.PriceEngine.applyCoupons(PriceEngine.java:212)",
+        "at com.acme.shop.order.OrderService.checkout(OrderService.java:131)",
+        "at com.acme.shop.order.OrderWorker.run(OrderWorker.java:57)",
+        "at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@17.0.12/ThreadPoolExecutor.java:1136)",
+        "at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)"
+      ],
+      "locks_held": [],
+      "waiting_on": [],
+      "pid": 48213,
+      "cpu_pct": 97.3,
+      "cpu_pct_of_capacity": 12.16,
+      "share_of_jvm_pct": 43.89,
+      "os_comm": "order-worker-3",
+      "cpu_time_total": "41:00.00"
+    },
+    {
+      "name": "order-worker-7",
+      "java_thread_number": 37,
+      "daemon": false,
+      "priority": 5,
+      "os_priority": 0,
+      "os_tid": 48294,
+      "nid": 48294,
+      "nid_hex": "0xbca6",
+      "nid_as_printed": "0xbca6",
+      "jvm_tid": "0x00007f3a48000025",
+      "cumulative_cpu_ms": 1203311.7,
+      "elapsed_s": 86412.0,
+      "state": "RUNNABLE",
+      "state_detail": "",
+      "os_state": "runnable",
+      "jvm_internal": false,
+      "top_frame": "java.util.HashMap.resize(java.base@17.0.12/HashMap.java:702)",
+      "app_frame": "com.acme.shop.catalog.PriceIndex.rebuild(PriceIndex.java:144)",
+      "stack": [
+        "at java.util.HashMap.resize(java.base@17.0.12/HashMap.java:702)",
+        "at java.util.HashMap.putVal(java.base@17.0.12/HashMap.java:661)",
+        "at java.util.HashMap.put(java.base@17.0.12/HashMap.java:610)",
+        "at com.acme.shop.catalog.PriceIndex.rebuild(PriceIndex.java:144)",
+        "at com.acme.shop.order.OrderService.checkout(OrderService.java:119)",
+        "at com.acme.shop.order.OrderWorker.run(OrderWorker.java:57)",
+        "at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)"
+      ],
+      "locks_held": [],
+      "waiting_on": [],
+      "pid": 48213,
+      "cpu_pct": 54.8,
+      "cpu_pct_of_capacity": 6.85,
+      "share_of_jvm_pct": 24.72,
+      "os_comm": "order-worker-7",
+      "cpu_time_total": "40:07.13"
+    },
+    {
+      "name": "qtp1297685781-42",
+      "java_thread_number": 42,
+      "daemon": false,
+      "priority": 5,
+      "os_priority": 0,
+      "os_tid": 48301,
+      "nid": 48301,
+      "nid_hex": "0xbcad",
+      "nid_as_printed": "0xbcad",
+      "jvm_tid": "0x00007f3a4800002a",
+      "cumulative_cpu_ms": 402554.1,
+      "elapsed_s": 86411.95,
+      "state": "RUNNABLE",
+      "state_detail": "",
+      "os_state": "runnable",
+      "jvm_internal": false,
+      "top_frame": "sun.nio.ch.EPoll.wait(java.base@17.0.12/Native Method)",
+      "app_frame": "org.eclipse.jetty.io.ManagedSelector.nioSelect(ManagedSelector.java:180)",
+      "stack": [
+        "at sun.nio.ch.EPoll.wait(java.base@17.0.12/Native Method)",
+        "at sun.nio.ch.EPollSelectorImpl.doSelect(java.base@17.0.12/EPollSelectorImpl.java:118)",
+        "at sun.nio.ch.SelectorImpl.lockAndDoSelect(java.base@17.0.12/SelectorImpl.java:129)",
+        "- locked <0x00000006c0f1a2d8> (a sun.nio.ch.Util$2)",
+        "- locked <0x00000006c0f1a1c0> (a sun.nio.ch.EPollSelectorImpl)",
+        "at sun.nio.ch.SelectorImpl.select(java.base@17.0.12/SelectorImpl.java:146)",
+        "at org.eclipse.jetty.io.ManagedSelector.nioSelect(ManagedSelector.java:180)",
+        "at org.eclipse.jetty.io.ManagedSelector$SelectorProducer.select(ManagedSelector.java:612)",
+        "at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)"
+      ],
+      "locks_held": [
+        "locked <0x00000006c0f1a2d8> (a sun.nio.ch.Util$2)",
+        "locked <0x00000006c0f1a1c0> (a sun.nio.ch.EPollSelectorImpl)"
+      ],
+      "waiting_on": [],
+      "pid": 48213,
+      "cpu_pct": 18.2,
+      "cpu_pct_of_capacity": 2.27,
+      "share_of_jvm_pct": 8.21,
+      "os_comm": "qtp1297685781-4",
+      "cpu_time_total": "39:14.26"
+    },
+    {
+      "name": "C2 CompilerThread0",
+      "java_thread_number": null,
+      "daemon": false,
+      "priority": null,
+      "os_priority": 0,
+      "os_tid": 48228,
+      "nid": 48228,
+      "nid_hex": "0xbc64",
+      "nid_as_printed": "0xbc64",
+      "jvm_tid": "0x00007f3a4000bc64",
+      "cumulative_cpu_ms": 512004.4,
+      "elapsed_s": 86412.57,
+      "state": "JVM_INTERNAL",
+      "state_detail": "",
+      "os_state": "waiting on condition",
+      "jvm_internal": true,
+      "top_frame": "",
+      "app_frame": "",
+      "stack": [],
+      "locks_held": [],
+      "waiting_on": [],
+      "pid": 48213,
+      "cpu_pct": 12.4,
+      "cpu_pct_of_capacity": 1.55,
+      "share_of_jvm_pct": 5.59,
+      "os_comm": "C2 CompilerThre",
+      "cpu_time_total": "38:21.39"
+    },
+    {
+      "name": "G1 Conc#0",
+      "java_thread_number": null,
+      "daemon": false,
+      "priority": null,
+      "os_priority": 0,
+      "os_tid": 48219,
+      "nid": 48219,
+      "nid_hex": "0xbc5b",
+      "nid_as_printed": "0xbc5b",
+      "jvm_tid": "0x00007f3a4000bc5b",
+      "cumulative_cpu_ms": 301877.0,
+      "elapsed_s": 86412.57,
+      "state": "JVM_INTERNAL",
+      "state_detail": "",
+      "os_state": "runnable",
+      "jvm_internal": true,
+      "top_frame": "",
+      "app_frame": "",
+      "stack": [],
+      "locks_held": [],
+      "waiting_on": [],
+      "pid": 48213,
+      "cpu_pct": 9.7,
+      "cpu_pct_of_capacity": 1.21,
+      "share_of_jvm_pct": 4.38,
+      "os_comm": "G1 Conc#0",
+      "cpu_time_total": "37:28.52"
+    },
+    {
+      "name": "order-worker-4",
+      "java_thread_number": 34,
+      "daemon": false,
+      "priority": 5,
+      "os_priority": 0,
+      "os_tid": 48291,
+      "nid": 48291,
+      "nid_hex": "0xbca3",
+      "nid_as_printed": "0xbca3",
+      "jvm_tid": "0x00007f3a48000022",
+      "cumulative_cpu_ms": 101876.3,
+      "elapsed_s": 86412.03,
+      "state": "RUNNABLE",
+      "state_detail": "",
+      "os_state": "runnable",
+      "jvm_internal": false,
+      "top_frame": "com.acme.shop.inventory.StockLedger.reserve(StockLedger.java:81)",
+      "app_frame": "com.acme.shop.inventory.StockLedger.reserve(StockLedger.java:81)",
+      "stack": [
+        "at com.acme.shop.inventory.StockLedger.reserve(StockLedger.java:81)",
+        "- locked <0x00000006c1a2b3c8> (a com.acme.shop.inventory.StockLedger)",
+        "at com.acme.shop.order.OrderService.reserveStock(OrderService.java:164)",
+        "at com.acme.shop.order.OrderService.checkout(OrderService.java:127)",
+        "at com.acme.shop.order.OrderWorker.run(OrderWorker.java:57)",
+        "at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@17.0.12/ThreadPoolExecutor.java:1136)",
+        "at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)"
+      ],
+      "locks_held": [
+        "locked <0x00000006c1a2b3c8> (a com.acme.shop.inventory.StockLedger)"
+      ],
+      "waiting_on": [],
+      "pid": 48213,
+      "cpu_pct": 7.6,
+      "cpu_pct_of_capacity": 0.95,
+      "share_of_jvm_pct": 3.43,
+      "os_comm": "order-worker-4",
+      "cpu_time_total": "36:35.65"
+    },
+    {
+      "name": "GC Thread#0",
+      "java_thread_number": null,
+      "daemon": false,
+      "priority": null,
+      "os_priority": 0,
+      "os_tid": 48216,
+      "nid": 48216,
+      "nid_hex": "0xbc58",
+      "nid_as_printed": "0xbc58",
+      "jvm_tid": "0x00007f3a4000bc58",
+      "cumulative_cpu_ms": 210334.2,
+      "elapsed_s": 86412.57,
+      "state": "JVM_INTERNAL",
+      "state_detail": "",
+      "os_state": "runnable",
+      "jvm_internal": true,
+      "top_frame": "",
+      "app_frame": "",
+      "stack": [],
+      "locks_held": [],
+      "waiting_on": [],
+      "pid": 48213,
+      "cpu_pct": 6.2,
+      "cpu_pct_of_capacity": 0.78,
+      "share_of_jvm_pct": 2.8,
+      "os_comm": "GC Thread#0",
+      "cpu_time_total": "35:42.78"
+    },
+    {
+      "name": "GC Thread#1",
+      "java_thread_number": null,
+      "daemon": false,
+      "priority": null,
+      "os_priority": 0,
+      "os_tid": 48239,
+      "nid": 48239,
+      "nid_hex": "0xbc6f",
+      "nid_as_printed": "0xbc6f",
+      "jvm_tid": "0x00007f3a4000bc6f",
+      "cumulative_cpu_ms": 208977.9,
+      "elapsed_s": 86412.57,
+      "state": "JVM_INTERNAL",
+      "state_detail": "",
+      "os_state": "runnable",
+      "jvm_internal": true,
+      "top_frame": "",
+      "app_frame": "",
+      "stack": [],
+      "locks_held": [],
+      "waiting_on": [],
+      "pid": 48213,
+      "cpu_pct": 5.9,
+      "cpu_pct_of_capacity": 0.74,
+      "share_of_jvm_pct": 2.66,
+      "os_comm": "GC Thread#1",
+      "cpu_time_total": "34:49.91"
+    },
+    {
+      "name": "kafka-producer-network-thread | shop-producer",
+      "java_thread_number": 51,
+      "daemon": true,
+      "priority": 5,
+      "os_priority": 0,
+      "os_tid": 48275,
+      "nid": 48275,
+      "nid_hex": "0xbc93",
+      "nid_as_printed": "0xbc93",
+      "jvm_tid": "0x00007f3a48000033",
+      "cumulative_cpu_ms": 77120.8,
+      "elapsed_s": 86411.86,
+      "state": "RUNNABLE",
+      "state_detail": "",
+      "os_state": "runnable",
+      "jvm_internal": false,
+      "top_frame": "sun.nio.ch.EPoll.wait(java.base@17.0.12/Native Method)",
+      "app_frame": "org.apache.kafka.common.network.Selector.select(Selector.java:873)",
+      "stack": [
+        "at sun.nio.ch.EPoll.wait(java.base@17.0.12/Native Method)",
+        "at sun.nio.ch.EPollSelectorImpl.doSelect(java.base@17.0.12/EPollSelectorImpl.java:118)",
+        "at sun.nio.ch.SelectorImpl.lockAndDoSelect(java.base@17.0.12/SelectorImpl.java:129)",
+        "at org.apache.kafka.common.network.Selector.select(Selector.java:873)",
+        "at org.apache.kafka.clients.producer.internals.Sender.run(Sender.java:243)",
+        "at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)"
+      ],
+      "locks_held": [],
+      "waiting_on": [],
+      "pid": 48213,
+      "cpu_pct": 3.1,
+      "cpu_pct_of_capacity": 0.39,
+      "share_of_jvm_pct": 1.4,
+      "os_comm": "kafka-producer-",
+      "cpu_time_total": "32:03.17"
+    },
+    {
+      "name": "VM Thread",
+      "java_thread_number": null,
+      "daemon": false,
+      "priority": null,
+      "os_priority": 0,
+      "os_tid": 48222,
+      "nid": 48222,
+      "nid_hex": "0xbc5e",
+      "nid_as_printed": "0xbc5e",
+      "jvm_tid": "0x00007f3a4000bc5e",
+      "cumulative_cpu_ms": 40211.5,
+      "elapsed_s": 86412.57,
+      "state": "JVM_INTERNAL",
+      "state_detail": "",
+      "os_state": "runnable",
+      "jvm_internal": true,
+      "top_frame": "",
+      "app_frame": "",
+      "stack": [],
+      "locks_held": [],
+      "waiting_on": [],
+      "pid": 48213,
+      "cpu_pct": 1.1,
+      "cpu_pct_of_capacity": 0.14,
+      "share_of_jvm_pct": 0.5,
+      "os_comm": "VM Thread",
+      "cpu_time_total": "31:10.30"
+    },
+    {
+      "name": "HikariPool-1 housekeeper",
+      "java_thread_number": 27,
+      "daemon": true,
+      "priority": 5,
+      "os_priority": 0,
+      "os_tid": 48256,
+      "nid": 48256,
+      "nid_hex": "0xbc80",
+      "nid_as_printed": "0xbc80",
+      "jvm_tid": "0x00007f3a4800001b",
+      "cumulative_cpu_ms": 1822.6,
+      "elapsed_s": 86412.1,
+      "state": "TIMED_WAITING",
+      "state_detail": "(parking)",
+      "os_state": "waiting on condition",
+      "jvm_internal": false,
+      "top_frame": "jdk.internal.misc.Unsafe.park(java.base@17.0.12/Native Method)",
+      "app_frame": "",
+      "stack": [
+        "at jdk.internal.misc.Unsafe.park(java.base@17.0.12/Native Method)",
+        "- parking to wait for  <0x00000006c0d2e8a0> (a java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject)",
+        "at java.util.concurrent.locks.LockSupport.parkNanos(java.base@17.0.12/LockSupport.java:252)",
+        "at java.util.concurrent.ScheduledThreadPoolExecutor$DelayedWorkQueue.take(java.base@17.0.12/ScheduledThreadPoolExecutor.java:1182)",
+        "at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)"
+      ],
+      "locks_held": [],
+      "waiting_on": [
+        "parking to wait for  <0x00000006c0d2e8a0> (a java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject)"
+      ],
+      "pid": 48213,
+      "cpu_pct": 0.3,
+      "cpu_pct_of_capacity": 0.04,
+      "share_of_jvm_pct": 0.14,
+      "os_comm": "HikariPool-1 ho",
+      "cpu_time_total": "28:31.69"
+    },
+    {
+      "name": "order-worker-1",
+      "java_thread_number": 31,
+      "daemon": false,
+      "priority": 5,
+      "os_priority": 0,
+      "os_tid": 48288,
+      "nid": 48288,
+      "nid_hex": "0xbca0",
+      "nid_as_printed": "0xbca0",
+      "jvm_tid": "0x00007f3a4800001f",
+      "cumulative_cpu_ms": 98211.2,
+      "elapsed_s": 86412.06,
+      "state": "BLOCKED",
+      "state_detail": "(on object monitor)",
+      "os_state": "waiting for monitor entry",
+      "jvm_internal": false,
+      "top_frame": "com.acme.shop.inventory.StockLedger.reserve(StockLedger.java:79)",
+      "app_frame": "com.acme.shop.inventory.StockLedger.reserve(StockLedger.java:79)",
+      "stack": [
+        "at com.acme.shop.inventory.StockLedger.reserve(StockLedger.java:79)",
+        "- waiting to lock <0x00000006c1a2b3c8> (a com.acme.shop.inventory.StockLedger)",
+        "at com.acme.shop.order.OrderService.reserveStock(OrderService.java:164)",
+        "at com.acme.shop.order.OrderService.checkout(OrderService.java:127)",
+        "at com.acme.shop.order.OrderWorker.run(OrderWorker.java:57)",
+        "at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@17.0.12/ThreadPoolExecutor.java:1136)",
+        "at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)"
+      ],
+      "locks_held": [],
+      "waiting_on": [
+        "waiting to lock <0x00000006c1a2b3c8> (a com.acme.shop.inventory.StockLedger)"
+      ],
+      "pid": 48213,
+      "cpu_pct": 0.3,
+      "cpu_pct_of_capacity": 0.04,
+      "share_of_jvm_pct": 0.14,
+      "os_comm": "order-worker-1",
+      "cpu_time_total": "30:17.43"
+    },
+    {
+      "name": "order-worker-2",
+      "java_thread_number": 32,
+      "daemon": false,
+      "priority": 5,
+      "os_priority": 0,
+      "os_tid": 48289,
+      "nid": 48289,
+      "nid_hex": "0xbca1",
+      "nid_as_printed": "0xbca1",
+      "jvm_tid": "0x00007f3a48000020",
+      "cumulative_cpu_ms": 97011.9,
+      "elapsed_s": 86412.05,
+      "state": "BLOCKED",
+      "state_detail": "(on object monitor)",
+      "os_state": "waiting for monitor entry",
+      "jvm_internal": false,
+      "top_frame": "com.acme.shop.inventory.StockLedger.reserve(StockLedger.java:79)",
+      "app_frame": "com.acme.shop.inventory.StockLedger.reserve(StockLedger.java:79)",
+      "stack": [
+        "at com.acme.shop.inventory.StockLedger.reserve(StockLedger.java:79)",
+        "- waiting to lock <0x00000006c1a2b3c8> (a com.acme.shop.inventory.StockLedger)",
+        "at com.acme.shop.order.OrderService.reserveStock(OrderService.java:164)",
+        "at com.acme.shop.order.OrderService.checkout(OrderService.java:127)",
+        "at com.acme.shop.order.OrderWorker.run(OrderWorker.java:57)",
+        "at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@17.0.12/ThreadPoolExecutor.java:1136)",
+        "at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)"
+      ],
+      "locks_held": [],
+      "waiting_on": [
+        "waiting to lock <0x00000006c1a2b3c8> (a com.acme.shop.inventory.StockLedger)"
+      ],
+      "pid": 48213,
+      "cpu_pct": 0.3,
+      "cpu_pct_of_capacity": 0.04,
+      "share_of_jvm_pct": 0.14,
+      "os_comm": "order-worker-2",
+      "cpu_time_total": "29:24.56"
+    },
+    {
+      "name": "VM Periodic Task Thread",
+      "java_thread_number": null,
+      "daemon": false,
+      "priority": null,
+      "os_priority": 0,
+      "os_tid": 48234,
+      "nid": 48234,
+      "nid_hex": "0xbc6a",
+      "nid_as_printed": "0xbc6a",
+      "jvm_tid": "0x00007f3a4000bc6a",
+      "cumulative_cpu_ms": 3012.8,
+      "elapsed_s": 86412.57,
+      "state": "JVM_INTERNAL",
+      "state_detail": "",
+      "os_state": "waiting on condition",
+      "jvm_internal": true,
+      "top_frame": "",
+      "app_frame": "",
+      "stack": [],
+      "locks_held": [],
+      "waiting_on": [],
+      "pid": 48213,
+      "cpu_pct": 0.1,
+      "cpu_pct_of_capacity": 0.01,
+      "share_of_jvm_pct": 0.05,
+      "os_comm": "VM Periodic Tas",
+      "cpu_time_total": "27:38.82"
+    },
+    {
+      "name": "Signal Dispatcher",
+      "java_thread_number": 4,
+      "daemon": true,
+      "priority": 5,
+      "os_priority": 0,
+      "os_tid": 48226,
+      "nid": 48226,
+      "nid_hex": "0xbc62",
+      "nid_as_printed": "0xbc62",
+      "jvm_tid": "0x00007f3a48000004",
+      "cumulative_cpu_ms": 0.41,
+      "elapsed_s": 86412.33,
+      "state": "RUNNABLE",
+      "state_detail": "",
+      "os_state": "waiting on condition",
+      "jvm_internal": false,
+      "top_frame": "",
+      "app_frame": "",
+      "stack": [],
+      "locks_held": [],
+      "waiting_on": [],
+      "pid": 48213,
+      "cpu_pct": 0.0,
+      "cpu_pct_of_capacity": 0.0,
+      "share_of_jvm_pct": 0.0,
+      "os_comm": "java",
+      "cpu_time_total": "25:52.08"
+    },
+    {
+      "name": "main",
+      "java_thread_number": 1,
+      "daemon": false,
+      "priority": 5,
+      "os_priority": 0,
+      "os_tid": 48214,
+      "nid": 48214,
+      "nid_hex": "0xbc56",
+      "nid_as_printed": "0xbc56",
+      "jvm_tid": "0x00007f3a48000001",
+      "cumulative_cpu_ms": 5210.11,
+      "elapsed_s": 86412.36,
+      "state": "WAITING",
+      "state_detail": "(on object monitor)",
+      "os_state": "in Object.wait()",
+      "jvm_internal": false,
+      "top_frame": "java.lang.Object.wait(java.base@17.0.12/Native Method)",
+      "app_frame": "org.eclipse.jetty.util.thread.QueuedThreadPool.join(QueuedThreadPool.java:876)",
+      "stack": [
+        "at java.lang.Object.wait(java.base@17.0.12/Native Method)",
+        "- waiting on <0x00000006c0012a40> (a org.eclipse.jetty.server.Server)",
+        "at java.lang.Object.wait(java.base@17.0.12/Object.java:338)",
+        "at org.eclipse.jetty.util.thread.QueuedThreadPool.join(QueuedThreadPool.java:876)",
+        "- locked <0x00000006c0012a40> (a org.eclipse.jetty.server.Server)",
+        "at com.acme.shop.Main.main(Main.java:41)"
+      ],
+      "locks_held": [
+        "locked <0x00000006c0012a40> (a org.eclipse.jetty.server.Server)"
+      ],
+      "waiting_on": [
+        "waiting on <0x00000006c0012a40> (a org.eclipse.jetty.server.Server)"
+      ],
+      "pid": 48213,
+      "cpu_pct": 0.0,
+      "cpu_pct_of_capacity": 0.0,
+      "share_of_jvm_pct": 0.0,
+      "os_comm": "java",
+      "cpu_time_total": "26:45.95"
+    },
+    {
+      "name": "order-worker-5",
+      "java_thread_number": 35,
+      "daemon": false,
+      "priority": 5,
+      "os_priority": 0,
+      "os_tid": 48292,
+      "nid": 48292,
+      "nid_hex": "0xbca4",
+      "nid_as_printed": "0xbca4",
+      "jvm_tid": "0x00007f3a48000023",
+      "cumulative_cpu_ms": 95022.0,
+      "elapsed_s": 86412.02,
+      "state": "TIMED_WAITING",
+      "state_detail": "(parking)",
+      "os_state": "waiting on condition",
+      "jvm_internal": false,
+      "top_frame": "jdk.internal.misc.Unsafe.park(java.base@17.0.12/Native Method)",
+      "app_frame": "",
+      "stack": [
+        "at jdk.internal.misc.Unsafe.park(java.base@17.0.12/Native Method)",
+        "- parking to wait for  <0x00000006c1b00010> (a java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject)",
+        "at java.util.concurrent.locks.LockSupport.parkNanos(java.base@17.0.12/LockSupport.java:252)",
+        "at java.util.concurrent.LinkedBlockingQueue.poll(java.base@17.0.12/LinkedBlockingQueue.java:460)",
+        "at java.util.concurrent.ThreadPoolExecutor.getTask(java.base@17.0.12/ThreadPoolExecutor.java:1061)",
+        "at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)"
+      ],
+      "locks_held": [],
+      "waiting_on": [
+        "parking to wait for  <0x00000006c1b00010> (a java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject)"
+      ],
+      "pid": 48213,
+      "cpu_pct": 0.0,
+      "cpu_pct_of_capacity": 0.0,
+      "share_of_jvm_pct": 0.0,
+      "os_comm": "order-worker-5",
+      "cpu_time_total": "24:59.21"
+    },
+    {
+      "name": "order-worker-6",
+      "java_thread_number": 36,
+      "daemon": false,
+      "priority": 5,
+      "os_priority": 0,
+      "os_tid": 48293,
+      "nid": 48293,
+      "nid_hex": "0xbca5",
+      "nid_as_printed": "0xbca5",
+      "jvm_tid": "0x00007f3a48000024",
+      "cumulative_cpu_ms": 94870.4,
+      "elapsed_s": 86412.01,
+      "state": "TIMED_WAITING",
+      "state_detail": "(parking)",
+      "os_state": "waiting on condition",
+      "jvm_internal": false,
+      "top_frame": "jdk.internal.misc.Unsafe.park(java.base@17.0.12/Native Method)",
+      "app_frame": "",
+      "stack": [
+        "at jdk.internal.misc.Unsafe.park(java.base@17.0.12/Native Method)",
+        "- parking to wait for  <0x00000006c1b00010> (a java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject)",
+        "at java.util.concurrent.locks.LockSupport.parkNanos(java.base@17.0.12/LockSupport.java:252)",
+        "at java.util.concurrent.LinkedBlockingQueue.poll(java.base@17.0.12/LinkedBlockingQueue.java:460)",
+        "at java.util.concurrent.ThreadPoolExecutor.getTask(java.base@17.0.12/ThreadPoolExecutor.java:1061)",
+        "at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)"
+      ],
+      "locks_held": [],
+      "waiting_on": [
+        "parking to wait for  <0x00000006c1b00010> (a java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject)"
+      ],
+      "pid": 48213,
+      "cpu_pct": 0.0,
+      "cpu_pct_of_capacity": 0.0,
+      "share_of_jvm_pct": 0.0,
+      "os_comm": "order-worker-6",
+      "cpu_time_total": "23:06.34"
+    }
+  ],
+  "unmatched_native_threads": [
+    {
+      "pid": 48213,
+      "os_tid": 48401,
+      "nid_hex": "0xbd11",
+      "cpu_pct": 4.4,
+      "share_of_jvm_pct": 1.98,
+      "comm": "netty-epoll"
+    }
+  ],
+  "groups": [
+    {
+      "pattern": "order-worker-#",
+      "count": 7,
+      "cpu_pct": 160.3,
+      "share_of_jvm_pct": 72.3,
+      "states": {
+        "RUNNABLE": 3,
+        "BLOCKED": 2,
+        "TIMED_WAITING": 2
+      }
+    },
+    {
+      "pattern": "qtp#-#",
+      "count": 1,
+      "cpu_pct": 18.2,
+      "share_of_jvm_pct": 8.21,
+      "states": {
+        "RUNNABLE": 1
+      }
+    },
+    {
+      "pattern": "C# CompilerThread#",
+      "count": 1,
+      "cpu_pct": 12.4,
+      "share_of_jvm_pct": 5.59,
+      "states": {
+        "JVM_INTERNAL": 1
+      }
+    },
+    {
+      "pattern": "GC Thread##",
+      "count": 2,
+      "cpu_pct": 12.1,
+      "share_of_jvm_pct": 5.46,
+      "states": {
+        "JVM_INTERNAL": 2
+      }
+    },
+    {
+      "pattern": "G# Conc##",
+      "count": 1,
+      "cpu_pct": 9.7,
+      "share_of_jvm_pct": 4.38,
+      "states": {
+        "JVM_INTERNAL": 1
+      }
+    },
+    {
+      "pattern": "kafka-producer-network-thread | shop-producer",
+      "count": 1,
+      "cpu_pct": 3.1,
+      "share_of_jvm_pct": 1.4,
+      "states": {
+        "RUNNABLE": 1
+      }
+    },
+    {
+      "pattern": "VM Thread",
+      "count": 1,
+      "cpu_pct": 1.1,
+      "share_of_jvm_pct": 0.5,
+      "states": {
+        "JVM_INTERNAL": 1
+      }
+    },
+    {
+      "pattern": "HikariPool-# housekeeper",
+      "count": 1,
+      "cpu_pct": 0.3,
+      "share_of_jvm_pct": 0.14,
+      "states": {
+        "TIMED_WAITING": 1
+      }
+    },
+    {
+      "pattern": "VM Periodic Task Thread",
+      "count": 1,
+      "cpu_pct": 0.1,
+      "share_of_jvm_pct": 0.05,
+      "states": {
+        "JVM_INTERNAL": 1
+      }
+    },
+    {
+      "pattern": "Signal Dispatcher",
+      "count": 1,
+      "cpu_pct": 0.0,
+      "share_of_jvm_pct": 0.0,
+      "states": {
+        "RUNNABLE": 1
+      }
+    },
+    {
+      "pattern": "main",
+      "count": 1,
+      "cpu_pct": 0.0,
+      "share_of_jvm_pct": 0.0,
+      "states": {
+        "WAITING": 1
+      }
+    }
+  ],
+  "states": [
+    {
+      "state": "RUNNABLE",
+      "count": 6,
+      "cpu_pct": 181.0
+    },
+    {
+      "state": "JVM_INTERNAL",
+      "count": 6,
+      "cpu_pct": 35.4
+    },
+    {
+      "state": "TIMED_WAITING",
+      "count": 3,
+      "cpu_pct": 0.3
+    },
+    {
+      "state": "BLOCKED",
+      "count": 2,
+      "cpu_pct": 0.6
+    },
+    {
+      "state": "WAITING",
+      "count": 1,
+      "cpu_pct": 0.0
+    }
+  ],
+  "contended_locks": [
+    {
+      "lock": "0x00000006c1a2b3c8",
+      "class": "com.acme.shop.inventory.StockLedger",
+      "waiters": [
+        "order-worker-1",
+        "order-worker-2"
+      ],
+      "owner": "order-worker-4",
+      "owner_state": "RUNNABLE",
+      "owner_cpu_pct": 7.6,
+      "owner_frame": "com.acme.shop.inventory.StockLedger.reserve(StockLedger.java:81)"
+    }
+  ],
+  "hints": [
+    {
+      "id": "LOCK_CONTENTION",
+      "severity": "warning",
+      "title": "2 threads blocked on com.acme.shop.inventory.StockLedger",
+      "detail": "Look at what the owner does inside the critical section: slow work (I/O, remote calls, big loops) there serialises every waiter.",
+      "evidence": [
+        "lock <0x00000006c1a2b3c8> (com.acme.shop.inventory.StockLedger)",
+        "waiters: order-worker-1, order-worker-2",
+        "owner: order-worker-4, runnable, 7.6% CPU, at com.acme.shop.inventory.StockLedger.reserve(StockLedger.java:81)"
+      ],
+      "commands": [
+        "jcmd 48213 Thread.print -l | grep -e '^\"' -e '0x00000006c1a2b3c8'   # owner = header above '- locked'"
+      ],
+      "threads": [
+        "order-worker-1",
+        "order-worker-2",
+        "order-worker-4"
+      ]
+    },
+    {
+      "id": "REGEX_BACKTRACKING",
+      "severity": "warning",
+      "title": "Regex backtracking in order-worker-3 (97.3% CPU)",
+      "detail": "The hottest frame is inside java.util.regex, the classic sign of catastrophic backtracking. Check the pattern applied at the frame below for nested or overlapping quantifiers such as (a+)+ or (.*)*, bound the input length, or use possessive quantifiers / atomic groups.",
+      "evidence": [
+        "order-worker-3: com.acme.shop.pricing.CouponValidator.isValid(CouponValidator.java:88)"
+      ],
+      "commands": [],
+      "threads": [
+        "order-worker-3"
+      ]
+    },
+    {
+      "id": "SELECTOR_SPIN",
+      "severity": "warning",
+      "title": "I/O selector thread qtp1297685781-42 uses 18.2% CPU while waiting",
+      "detail": "A thread parked in epoll/kqueue should use almost no CPU. This much means the selector wakes up constantly: a busy socket, a spurious-wakeup spin, or a Netty/NIO selector rebuild loop. Check the library's logs for selector warnings and look at connection churn.",
+      "evidence": [
+        "qtp1297685781-42: 18.2% in sun.nio.ch.EPoll.wait(java.base@17.0.12/Native Method)"
+      ],
+      "commands": [
+        "ss -tanp | grep 'pid=48213,' | wc -l"
+      ],
+      "threads": [
+        "qtp1297685781-42"
+      ]
+    }
+  ]
+}

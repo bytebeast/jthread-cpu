@@ -1,0 +1,873 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/bytebeast/jthread-cpu/main/schema/jthread-cpu-v1.schema.json",
+  "title": "jthread-cpu output",
+  "description": "One JSON document from `jthread-cpu -o json` (a report, or a series when --count > 1), or one line of `-o jsonl` (a report per round, then a summary). Schema version 1.0.0. Unknown keys may appear in later MINOR versions.",
+  "x-schema-version": "1.0.0",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/report"
+    },
+    {
+      "$ref": "#/$defs/summary"
+    },
+    {
+      "$ref": "#/$defs/series"
+    }
+  ],
+  "$defs": {
+    "report": {
+      "type": "object",
+      "required": [
+        "schema",
+        "schema_version",
+        "kind",
+        "tool",
+        "round",
+        "pid",
+        "method",
+        "method_id",
+        "sample_window_s",
+        "capacity",
+        "cpu",
+        "total_thread_cpu_pct",
+        "coverage",
+        "deadlocks",
+        "threads",
+        "unmatched_native_threads",
+        "groups",
+        "states",
+        "contended_locks",
+        "hints"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "description": "URL of this schema."
+        },
+        "schema_version": {
+          "type": "string",
+          "pattern": "^1\\.\\d+\\.\\d+$",
+          "description": "SemVer of the output contract. MAJOR changes break consumers; MINOR only adds fields or enum values; consumers must ignore unknown keys."
+        },
+        "tool": {
+          "type": "object",
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "const": "jthread-cpu"
+            },
+            "version": {
+              "type": "string"
+            }
+          }
+        },
+        "kind": {
+          "const": "report"
+        },
+        "round": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rounds_planned": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "null = until interrupted (--watch)."
+        },
+        "generated_at": {
+          "type": "string",
+          "description": "Human-readable time, as shown in the text report."
+        },
+        "sampled_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "ISO 8601; no UTC offset when it came from a dump file."
+        },
+        "pid": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "ppid": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "cmdline": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "method": {
+          "type": "string",
+          "description": "Human-readable sampling method."
+        },
+        "method_id": {
+          "enum": [
+            "top",
+            "proc",
+            "jstack",
+            "offline-top",
+            "offline-lifetime"
+          ]
+        },
+        "sample_window_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "window_source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cpu_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Online CPUs on the sampling host (legacy)."
+        },
+        "capacity": {
+          "type": "object",
+          "required": [
+            "host_cpus",
+            "affinity_cpus",
+            "cgroup_quota_cores",
+            "capacity_cores",
+            "source"
+          ],
+          "properties": {
+            "host_cpus": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "affinity_cpus": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "cgroup_quota_cores": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "capacity_cores": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Cores the JVM can use: min of the above."
+            },
+            "source": {
+              "enum": [
+                "host",
+                "affinity",
+                "cgroup quota",
+                "--cpus",
+                "unknown"
+              ]
+            },
+            "cgroup_path": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "cgroup directory whose quota applies."
+            }
+          }
+        },
+        "cpu": {
+          "type": "object",
+          "required": [
+            "unit",
+            "total_pct",
+            "total_cores",
+            "pct_of_capacity",
+            "process_pct",
+            "unattributed_pct"
+          ],
+          "properties": {
+            "unit": {
+              "const": "percent_of_one_core"
+            },
+            "total_pct": {
+              "type": "number"
+            },
+            "total_cores": {
+              "type": "number"
+            },
+            "pct_of_capacity": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "process_pct": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Whole-process CPU (--method proc only)."
+            },
+            "unattributed_pct": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "process_pct minus live threads."
+            }
+          }
+        },
+        "total_thread_cpu_pct": {
+          "type": "number"
+        },
+        "process": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "coverage": {
+          "type": "object",
+          "required": [
+            "threads_in_dump",
+            "threads_with_cpu",
+            "unmatched_native"
+          ],
+          "properties": {
+            "threads_in_dump": {
+              "type": "integer"
+            },
+            "threads_with_cpu": {
+              "type": "integer"
+            },
+            "unmatched_native": {
+              "type": "integer"
+            }
+          }
+        },
+        "deadlocks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deadlock_stacks": {
+          "type": "string"
+        },
+        "threads": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/thread"
+          }
+        },
+        "unmatched_native_threads": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "os_tid",
+              "nid_hex",
+              "cpu_pct",
+              "comm"
+            ],
+            "properties": {
+              "pid": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "os_tid": {
+                "type": "integer"
+              },
+              "nid_hex": {
+                "type": "string"
+              },
+              "cpu_pct": {
+                "type": "number"
+              },
+              "share_of_jvm_pct": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "comm": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "pattern",
+              "count",
+              "cpu_pct",
+              "states"
+            ],
+            "properties": {
+              "pattern": {
+                "type": "string"
+              },
+              "count": {
+                "type": "integer"
+              },
+              "cpu_pct": {
+                "type": "number"
+              },
+              "share_of_jvm_pct": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "states": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "states": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "state",
+              "count",
+              "cpu_pct"
+            ],
+            "properties": {
+              "state": {
+                "type": "string"
+              },
+              "count": {
+                "type": "integer"
+              },
+              "cpu_pct": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "contended_locks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "lock",
+              "class",
+              "waiters",
+              "owner"
+            ],
+            "properties": {
+              "lock": {
+                "type": "string"
+              },
+              "class": {
+                "type": "string"
+              },
+              "waiters": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "owner": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "owner_state": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "owner_cpu_pct": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "owner_frame": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "hints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hint"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "schema",
+        "schema_version",
+        "kind",
+        "tool",
+        "pid",
+        "rounds",
+        "duration_s",
+        "interrupted",
+        "hot_threshold_pct",
+        "total_cpu_pct_series",
+        "threads",
+        "hint_counts",
+        "hints"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "description": "URL of this schema."
+        },
+        "schema_version": {
+          "type": "string",
+          "pattern": "^1\\.\\d+\\.\\d+$",
+          "description": "SemVer of the output contract. MAJOR changes break consumers; MINOR only adds fields or enum values; consumers must ignore unknown keys."
+        },
+        "tool": {
+          "type": "object",
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "const": "jthread-cpu"
+            },
+            "version": {
+              "type": "string"
+            }
+          }
+        },
+        "kind": {
+          "const": "summary"
+        },
+        "pid": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "rounds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "duration_s": {
+          "type": "number"
+        },
+        "interrupted": {
+          "type": "boolean"
+        },
+        "hot_threshold_pct": {
+          "type": "number"
+        },
+        "total_cpu_pct_series": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "threads": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "os_tid",
+              "rounds_present",
+              "rounds_hot",
+              "avg_cpu_pct",
+              "max_cpu_pct",
+              "last_cpu_pct",
+              "series",
+              "dominant_top_frame",
+              "dominant_top_frame_rounds",
+              "classification"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "os_tid": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "rounds_present": {
+                "type": "integer"
+              },
+              "rounds_hot": {
+                "type": "integer"
+              },
+              "avg_cpu_pct": {
+                "type": "number"
+              },
+              "max_cpu_pct": {
+                "type": "number"
+              },
+              "last_cpu_pct": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "series": {
+                "type": "array",
+                "items": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "dominant_top_frame": {
+                "type": "string"
+              },
+              "dominant_top_frame_rounds": {
+                "type": "integer"
+              },
+              "dominant_app_frame": {
+                "type": "string",
+                "description": "Most common first non-JDK frame while hot."
+              },
+              "classification": {
+                "enum": [
+                  "persistent",
+                  "recurring",
+                  "spike"
+                ]
+              }
+            }
+          }
+        },
+        "hint_counts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "hints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hint"
+          }
+        }
+      }
+    },
+    "series": {
+      "type": "object",
+      "required": [
+        "schema",
+        "schema_version",
+        "kind",
+        "tool",
+        "reports",
+        "summary"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "description": "URL of this schema."
+        },
+        "schema_version": {
+          "type": "string",
+          "pattern": "^1\\.\\d+\\.\\d+$",
+          "description": "SemVer of the output contract. MAJOR changes break consumers; MINOR only adds fields or enum values; consumers must ignore unknown keys."
+        },
+        "tool": {
+          "type": "object",
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "const": "jthread-cpu"
+            },
+            "version": {
+              "type": "string"
+            }
+          }
+        },
+        "kind": {
+          "const": "series"
+        },
+        "reports": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/report"
+          }
+        },
+        "summary": {
+          "$ref": "#/$defs/summary"
+        }
+      }
+    },
+    "thread": {
+      "type": "object",
+      "required": [
+        "name",
+        "pid",
+        "os_tid",
+        "nid",
+        "nid_hex",
+        "state",
+        "jvm_internal",
+        "cpu_pct",
+        "top_frame",
+        "stack",
+        "locks_held",
+        "waiting_on"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "pid": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "java_thread_number": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "daemon": {
+          "type": "boolean"
+        },
+        "priority": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "os_priority": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "os_tid": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Kernel TID (Linux); what top -H shows as PID."
+        },
+        "nid": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Same value as os_tid; jstack's name for it."
+        },
+        "nid_hex": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nid_as_printed": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "jvm_tid": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cumulative_cpu_ms": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "elapsed_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "description": "java.lang.Thread.State, or JVM_INTERNAL."
+        },
+        "state_detail": {
+          "type": "string"
+        },
+        "os_state": {
+          "type": "string"
+        },
+        "jvm_internal": {
+          "type": "boolean"
+        },
+        "cpu_pct": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Percent of one core over the window; null = no sample."
+        },
+        "cpu_pct_of_capacity": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "share_of_jvm_pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "os_comm": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cpu_time_total": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "top_frame": {
+          "type": "string"
+        },
+        "app_frame": {
+          "type": "string",
+          "description": "First frame outside the JDK."
+        },
+        "stack": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "locks_held": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "waiting_on": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "hint": {
+      "type": "object",
+      "required": [
+        "id",
+        "severity",
+        "title",
+        "detail",
+        "evidence",
+        "commands",
+        "threads"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "DEADLOCK",
+            "PERSISTENT_LOOP",
+            "LOCK_CONTENTION",
+            "REGEX_BACKTRACKING",
+            "MAP_LOOP",
+            "HOT_THREAD",
+            "SELECTOR_SPIN",
+            "GC_CPU",
+            "CAPACITY_SATURATED",
+            "UNATTRIBUTED_CPU",
+            "POOL_SATURATED",
+            "BURSTY_THREAD",
+            "NATIVE_THREAD",
+            "JIT_CPU",
+            "JVM_IDLE",
+            "LIFETIME_AVERAGE",
+            "SHORT_WINDOW",
+            "LOW_COVERAGE"
+          ],
+          "description": "Stable rule identifier."
+        },
+        "severity": {
+          "enum": [
+            "critical",
+            "warning",
+            "info"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Shell commands to run next; <pid> when the pid is unknown."
+        },
+        "threads": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

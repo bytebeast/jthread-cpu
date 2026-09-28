@@ -1,0 +1,3097 @@
+#!/usr/bin/env python3
+"""
+jthread-cpu - correlate JVM threads (jstack) with per-thread CPU usage.
+
+The JVM prints a native thread id in every jstack entry as `nid=0x<hex>`
+(JDK 21+ prints it in decimal - both are handled).  On Linux that value is the
+kernel TID, which is exactly what `top -H -b -p <pid>` reports in its PID
+column.  This script samples one, parses the other, joins them on that id and
+prints something a human can read at 3am.
+
+On macOS there is no `top -H` and nid is a mach port rather than a TID, so the
+portable `jstack` method is used instead: two thread dumps a few seconds apart,
+differencing the per-thread cumulative `cpu=` field.  Same output, no top.
+
+Sampling methods
+----------------
+  top     `top -H -b -n2 -p PID`  -> interval %CPU per TID          (Linux)
+  proc    /proc/PID/task/*/stat   -> interval %CPU per TID          (Linux)
+  jstack  two Thread.print dumps  -> delta of the `cpu=` field      (portable,
+                                     works on macOS, target JDK 11+)
+
+CPU units
+---------
+  Per-thread %CPU is measured like `top`: 100% = one core fully busy, so a
+  single thread tops out near 100%.  The banner also reports the total in
+  cores and as a share of the CPU capacity actually available to the JVM
+  (host CPUs, narrowed by CPU affinity and any cgroup CPU quota).
+
+Examples
+--------
+  jthread-cpu                           # autodetect the only JVM, 2s sample
+  jthread-cpu -p 12345 -n 10            # show top 10 hottest threads
+  jthread-cpu -p 12345 -d 5 -f 12       # 5s sample, 12 stack frames each
+  jthread-cpu -p 12345 -c 6 -i 10       # 6 rounds, 10s apart, then a summary
+  jthread-cpu -p 12345 --watch          # redraw until Ctrl-C
+  jthread-cpu -p 12345 -o json          # machine readable (see --print-schema)
+  jthread-cpu --jstack-file d.txt --top-file t.txt   # offline post-mortem
+  jthread-cpu -p 12345 --theme latte    # catppuccin latte, for light terminals
+  jthread-cpu -p 12345 --ascii          # no box-drawing glyphs
+
+Requires only the standard library.  Python 3.7+.
+"""
+
+import argparse
+import datetime
+import io
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from collections import Counter, OrderedDict, defaultdict
+
+__version__ = "1.5.0"
+__author__ = "github.com/bytebeast"
+
+PROG = "jthread-cpu"
+
+# Version of the JSON output contract (see --print-schema and schema/).
+#   MAJOR: a field is removed, renamed or changes type/meaning
+#   MINOR: a field or enum value is added (consumers must ignore unknown keys)
+#   PATCH: documentation / description-only changes
+SCHEMA_VERSION = "1.0.0"
+SCHEMA_ID = (
+    "https://raw.githubusercontent.com/bytebeast/jthread-cpu/main/"
+    "schema/jthread-cpu-v1.schema.json"  # the file name carries the MAJOR
+)
+
+IS_LINUX = sys.platform.startswith("linux")
+IS_MAC = sys.platform == "darwin"
+
+
+# --------------------------------------------------------------------------
+# terminal helpers
+# --------------------------------------------------------------------------
+# --- Catppuccin (https://catppuccin.com) -----------------------------------
+# Only the swatches this report actually uses are listed.
+CATPPUCCIN = {
+    "mocha": {
+        "rosewater": "f5e0dc",
+        "flamingo": "f2cdcd",
+        "pink": "f5c2e7",
+        "mauve": "cba6f7",
+        "red": "f38ba8",
+        "maroon": "eba0ac",
+        "peach": "fab387",
+        "yellow": "f9e2af",
+        "green": "a6e3a1",
+        "teal": "94e2d5",
+        "sky": "89dceb",
+        "sapphire": "74c7ec",
+        "blue": "89b4fa",
+        "lavender": "b4befe",
+        "text": "cdd6f4",
+        "subtext1": "bac2de",
+        "subtext0": "a6adc8",
+        "overlay2": "9399b2",
+        "overlay1": "7f849c",
+        "overlay0": "6c7086",
+        "surface2": "585b70",
+        "base": "1e1e2e",
+        "crust": "11111b",
+    },
+    "macchiato": {
+        "rosewater": "f4dbd6",
+        "flamingo": "f0c6c6",
+        "pink": "f5bde6",
+        "mauve": "c6a0f6",
+        "red": "ed8796",
+        "maroon": "ee99a0",
+        "peach": "f5a97f",
+        "yellow": "eed49f",
+        "green": "a6da95",
+        "teal": "8bd5ca",
+        "sky": "91d7e3",
+        "sapphire": "7dc4e4",
+        "blue": "8aadf4",
+        "lavender": "b7bdf8",
+        "text": "cad3f5",
+        "subtext1": "b8c0e0",
+        "subtext0": "a5adcb",
+        "overlay2": "939ab7",
+        "overlay1": "8087a2",
+        "overlay0": "6e738d",
+        "surface2": "5b6078",
+        "base": "24273a",
+        "crust": "181926",
+    },
+    "frappe": {
+        "rosewater": "f2d5cf",
+        "flamingo": "eebebe",
+        "pink": "f4b8e4",
+        "mauve": "ca9ee6",
+        "red": "e78284",
+        "maroon": "ea999c",
+        "peach": "ef9f76",
+        "yellow": "e5c890",
+        "green": "a6d189",
+        "teal": "81c8be",
+        "sky": "99d1db",
+        "sapphire": "85c1dc",
+        "blue": "8caaee",
+        "lavender": "babbf1",
+        "text": "c6d0f5",
+        "subtext1": "b5bfe2",
+        "subtext0": "a5adce",
+        "overlay2": "949cbb",
+        "overlay1": "838ba7",
+        "overlay0": "737994",
+        "surface2": "626880",
+        "base": "303446",
+        "crust": "232634",
+    },
+    "latte": {  # the light flavour
+        "rosewater": "dc8a78",
+        "flamingo": "dd7878",
+        "pink": "ea76cb",
+        "mauve": "8839ef",
+        "red": "d20f39",
+        "maroon": "e64553",
+        "peach": "fe640b",
+        "yellow": "df8e1d",
+        "green": "40a02b",
+        "teal": "179299",
+        "sky": "04a5e5",
+        "sapphire": "209fb5",
+        "blue": "1e66f5",
+        "lavender": "7287fd",
+        "text": "4c4f69",
+        "subtext1": "5c5f77",
+        "subtext0": "6c6f85",
+        "overlay2": "7c7f93",
+        "overlay1": "8c8fa1",
+        "overlay0": "9ca0b0",
+        "surface2": "acb0be",
+        "base": "eff1f5",
+        "crust": "dce0e8",
+    },
+}
+
+
+def _hex_rgb(h):
+    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+
+
+def _rgb_256(r, g, b):
+    """Nearest xterm-256 index, for terminals without truecolor."""
+    if abs(r - g) < 11 and abs(g - b) < 11:  # greyscale ramp
+        if r < 8:
+            return 16
+        if r > 248:
+            return 231
+        return 232 + int(round((r - 8) / 247.0 * 24))
+    q = lambda v: 0 if v < 48 else (1 if v < 115 else min(5, (v - 35) // 40))
+    return 16 + 36 * q(r) + 6 * q(g) + q(b)
+
+
+def _supports_truecolor():
+    if os.environ.get("COLORTERM", "").lower() in ("truecolor", "24bit"):
+        return True
+    return os.environ.get("TERM", "").endswith(("direct", "truecolor"))
+
+
+class C:
+    """Catppuccin palette. Every attribute becomes '' when colour is off."""
+
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    # semantic slots, filled in by apply_theme()
+    TEXT = DIM = GREY = RED = MAROON = PEACH = YELLOW = GREEN = ""
+    TEAL = SKY = BLUE = LAVENDER = MAUVE = PINK = ""
+    CYAN = MAGENTA = BG_RED = HEADER = ""
+    theme = "mocha"
+
+    @classmethod
+    def apply_theme(cls, name):
+        if name == "auto":
+            # COLORFGBG ends with a high number on light backgrounds
+            bg = os.environ.get("COLORFGBG", "").split(";")[-1]
+            name = "latte" if bg.isdigit() and int(bg) >= 7 else "mocha"
+        pal = CATPPUCCIN.get(name, CATPPUCCIN["mocha"])
+        cls.theme = name
+        true = _supports_truecolor()
+
+        def fg(key):
+            r, g, b = _hex_rgb(pal[key])
+            return (
+                "\033[38;2;%d;%d;%dm" % (r, g, b)
+                if true
+                else "\033[38;5;%dm" % _rgb_256(r, g, b)
+            )
+
+        def bg_on(bgkey, fgkey):
+            r, g, b = _hex_rgb(pal[bgkey])
+            fr, fgc, fb = _hex_rgb(pal[fgkey])
+            if true:
+                return "\033[48;2;%d;%d;%dm\033[38;2;%d;%d;%dm" % (r, g, b, fr, fgc, fb)
+            return "\033[48;5;%dm\033[38;5;%dm" % (
+                _rgb_256(r, g, b),
+                _rgb_256(fr, fgc, fb),
+            )
+
+        cls.TEXT = fg("text")
+        cls.DIM = fg("overlay1")
+        cls.GREY = fg("overlay0")
+        cls.RED = fg("red")
+        cls.MAROON = fg("maroon")
+        cls.PEACH = fg("peach")
+        cls.YELLOW = fg("yellow")
+        cls.GREEN = fg("green")
+        cls.TEAL = fg("teal")
+        cls.SKY = fg("sky")
+        cls.BLUE = fg("blue")
+        cls.LAVENDER = fg("lavender")
+        cls.MAUVE = fg("mauve")
+        cls.PINK = fg("pink")
+        cls.CYAN = cls.SKY  # legacy aliases
+        cls.MAGENTA = cls.MAUVE
+        cls.HEADER = fg("mauve")
+        cls.BG_RED = bg_on("red", "crust")
+
+    @classmethod
+    def disable(cls):
+        for name in dir(cls):
+            if name.isupper():
+                setattr(cls, name, "")
+
+
+class G:
+    """Box-drawing glyphs, with an ASCII fallback for LANG=C terminals."""
+
+    BAR = "█"  # full block
+    EMPTY = "·"  # middle dot
+    ARROW = "↳"  # downwards arrow with tip rightwards
+    WAIT = "⊘"  # circled division slash
+    ELLIPSIS = "…"
+    HINT = "→"  # rightwards arrow
+    SPARK = "▁▂▃▄▅▆▇█"  # one glyph per eighth of a core
+    GAP = "·"  # sparkline slot where the thread did not exist
+    TIMES = "×"
+
+    @classmethod
+    def to_ascii(cls):
+        cls.BAR, cls.EMPTY, cls.ARROW, cls.WAIT, cls.ELLIPSIS = (
+            "#",
+            ".",
+            "->",
+            "!",
+            "...",
+        )
+        cls.HINT, cls.SPARK, cls.GAP, cls.TIMES = ">", "_.-=+*%#", " ", "x"
+
+
+def setup_encoding(force_ascii=False):
+    """Never let an unencodable glyph abort the report half-written."""
+    enc = getattr(sys.stdout, "encoding", None) or "ascii"
+    try:
+        (G.BAR + G.EMPTY + G.ARROW + G.WAIT + G.ELLIPSIS + G.HINT + G.SPARK + G.TIMES).encode(enc)
+        unicode_ok = True
+    except (UnicodeEncodeError, LookupError):
+        unicode_ok = False
+    if force_ascii or not unicode_ok:
+        G.to_ascii()
+    # thread names and frames can still hold non-ASCII, so degrade rather than raise
+    if not unicode_ok:
+        try:
+            sys.stdout.reconfigure(errors="replace")  # py3.7+
+        except AttributeError:
+            try:
+                sys.stdout = io.TextIOWrapper(
+                    sys.stdout.buffer,
+                    encoding=enc,
+                    errors="replace",
+                    line_buffering=True,
+                )
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+
+def term_width(default=100):
+    try:
+        return max(80, min(shutil.get_terminal_size((default, 24)).columns, 200))
+    except Exception:
+        return default
+
+
+def die(msg, code=1):
+    sys.stderr.write("%serror:%s %s\n" % (C.RED + C.BOLD, C.RESET, msg))
+    sys.exit(code)
+
+
+def warn(msg):
+    sys.stderr.write("%swarning:%s %s\n" % (C.YELLOW, C.RESET, msg))
+
+
+def run(cmd, timeout=60, check=False):
+    """Run a command, return (rc, stdout, stderr).
+
+    Forced into the C locale: a translated `top` header would break parsing.
+    """
+    env = dict(os.environ, LC_ALL="C", LANG="C")
+    try:
+        p = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            text=True,
+            env=env,
+        )
+    except FileNotFoundError:
+        return 127, "", "%s: not found" % cmd[0]
+    except subprocess.TimeoutExpired:
+        return 124, "", "%s: timed out after %ss" % (cmd[0], timeout)
+    if check and p.returncode != 0:
+        die("%s failed (rc=%d): %s" % (" ".join(cmd), p.returncode, p.stderr.strip()))
+    return p.returncode, p.stdout, p.stderr
+
+
+# --------------------------------------------------------------------------
+# process discovery
+# --------------------------------------------------------------------------
+def read_text_file(path, label):
+    try:
+        with open(path, errors="replace") as fh:
+            return fh.read()
+    except OSError as e:
+        die("cannot read %s %s: %s" % (label, path, e.strerror or e))
+
+
+def find_java_pids():
+    """Return [(pid, description), ...] for running JVMs."""
+    found = {}
+
+    rc, out, _ = run(["jps", "-l"])
+    if rc == 0:
+        for line in out.splitlines():
+            parts = line.split(None, 1)
+            if len(parts) >= 1 and parts[0].isdigit():
+                pid = int(parts[0])
+                name = parts[1] if len(parts) > 1 else "?"
+                if "sun.tools.jps" in name or "jdk.jcmd" in name:
+                    continue
+                found[pid] = name
+
+    if not found:
+        rc, out, _ = run(["pgrep", "-f", r"java"])
+        if rc == 0:
+            for line in out.split():
+                if line.isdigit():
+                    found.setdefault(int(line), process_cmdline(int(line)) or "java")
+
+    return sorted(found.items())
+
+
+def process_cmdline(pid):
+    if IS_LINUX:
+        try:
+            with open("/proc/%d/cmdline" % pid, "rb") as fh:
+                raw = fh.read().replace(b"\x00", b" ").strip()
+            if raw:
+                return raw.decode("utf-8", "replace")
+        except OSError:
+            return None
+    rc, out, _ = run(["ps", "-o", "command=", "-p", str(pid)])
+    if rc == 0:
+        return out.strip() or None
+    return None
+
+
+def pid_alive(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+def process_cpu_percent(pid):
+    """Whole-process %CPU as ps sees it (average since start; context only)."""
+    rc, out, _ = run(["ps", "-o", "%cpu=,rss=,etime=", "-p", str(pid)])
+    if rc != 0 or not out.strip():
+        return None
+    f = out.split()
+    try:
+        return {"cpu_pct": float(f[0]), "rss_kb": int(f[1]), "elapsed": f[2]}
+    except (IndexError, ValueError):
+        return None
+
+
+def parent_pid(pid):
+    """PPid of the JVM itself - the shell, systemd or container runtime."""
+    if IS_LINUX:
+        try:
+            with open("/proc/%d/status" % pid) as fh:
+                for line in fh:
+                    if line.startswith("PPid:"):
+                        return int(line.split()[1])
+        except (OSError, ValueError, IndexError):
+            return None
+        return None
+    rc, out, _ = run(["ps", "-o", "ppid=", "-p", str(pid)])
+    if rc == 0 and out.strip().isdigit():
+        return int(out.strip())
+    return None
+
+
+def cpu_count():
+    try:
+        return os.cpu_count() or 1
+    except Exception:
+        return 1
+
+
+def _read_first_line(path):
+    try:
+        with open(path) as fh:
+            return fh.readline().strip()
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+CGROUP_ROOT = "/sys/fs/cgroup"  # module-level so tests can point it at a fake tree
+PROC_ROOT = "/proc"
+
+
+def _cgroup_limit_at(kind, d):
+    """Quota in cores set directly on cgroup directory `d`, or None."""
+    try:
+        if kind == "v2":
+            raw = _read_first_line(os.path.join(d, "cpu.max"))
+            f = raw.split() if raw else []
+            if len(f) == 2 and f[0] != "max":
+                return int(f[0]) / float(f[1])
+        else:
+            qs = _read_first_line(os.path.join(d, "cpu.cfs_quota_us"))
+            ps = _read_first_line(os.path.join(d, "cpu.cfs_period_us"))
+            if qs and ps and int(qs) > 0:
+                return int(qs) / float(ps)
+    except (ValueError, ZeroDivisionError):
+        pass
+    return None
+
+
+def _cgroup_quota_cores(pid):
+    return _cgroup_quota(pid)[0]
+
+
+def _cgroup_quota(pid):
+    """(quota in cores or None, cgroup directory that sets it or None).
+
+    CPU quota (in cores) applying to `pid`, or None when unlimited/unknown.
+
+    cgroup v2: cpu.max = "<quota|max> <period>".  cgroup v1: cpu.cfs_quota_us
+    / cpu.cfs_period_us.  Every ancestor can carry its own limit, so the
+    tightest one on the path wins.  When the target lives in another cgroup
+    namespace (we run on the host, the JVM in a container) its path is
+    resolved under our cgroup mount; if that fails we fall back to our own
+    cgroup, which is right when we were exec'd into the same container.
+    """
+    if not IS_LINUX and CGROUP_ROOT == "/sys/fs/cgroup":
+        return None, None
+    try:
+        with open(os.path.join(PROC_ROOT, str(pid), "cgroup")) as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        lines = []
+
+    v1_mounts = ("cpu,cpuacct", "cpuacct,cpu", "cpu")
+    candidates = []  # (kind, hierarchy root, leaf directory)
+    for line in lines:
+        parts = line.split(":", 2)
+        if len(parts) != 3:
+            continue
+        hid, ctrls, path = parts
+        rel = path.strip().strip("/")
+        if hid == "0" and ctrls == "":
+            candidates.append(("v2", CGROUP_ROOT, os.path.join(CGROUP_ROOT, rel)))
+        elif "cpu" in ctrls.split(","):
+            for mnt in v1_mounts:
+                root = os.path.join(CGROUP_ROOT, mnt)
+                candidates.append(("v1", root, os.path.join(root, rel)))
+    # our own view, for the "we live inside the same container" case
+    candidates.append(("v2", CGROUP_ROOT, CGROUP_ROOT))
+    for mnt in v1_mounts:
+        root = os.path.join(CGROUP_ROOT, mnt)
+        candidates.append(("v1", root, root))
+
+    for kind, root, leaf in candidates:
+        marker = "cpu.max" if kind == "v2" else "cpu.cfs_quota_us"
+        if not os.path.isfile(os.path.join(leaf, marker)):
+            continue  # not this hierarchy, or a path from another namespace
+        best, best_dir = None, None
+        d = leaf
+        while True:
+            q = _cgroup_limit_at(kind, d)
+            if q is not None and q > 0 and (best is None or q < best):
+                best, best_dir = q, d
+            if os.path.normpath(d) == os.path.normpath(root):
+                break
+            parent = os.path.dirname(d)
+            if parent == d or not parent.startswith(root):
+                break
+            d = parent
+        return best, best_dir  # the first readable hierarchy is authoritative
+    return None, None
+
+
+def cpu_capacity(pid=None, override=None):
+    """How much CPU the JVM can actually use, in cores.
+
+    Returns a dict: host (online CPUs), affinity (CPUs in the target's affinity
+    mask), cgroup_quota (cores, or None), capacity (the smallest of those) and
+    source (which one set the capacity).  `override` (--cpus) wins outright.
+    """
+    info = OrderedDict(
+        [("host", None), ("affinity", None), ("cgroup_quota", None),
+         ("capacity", None), ("source", "unknown"), ("cgroup_dir", None)]
+    )
+    if override:
+        info["capacity"] = float(override)
+        info["source"] = "--cpus"
+        return info
+    info["host"] = cpu_count()
+    info["capacity"] = float(info["host"])
+    info["source"] = "host"
+    if hasattr(os, "sched_getaffinity"):
+        try:
+            aff = len(os.sched_getaffinity(pid or 0))
+            info["affinity"] = aff
+            if aff < info["capacity"]:
+                info["capacity"], info["source"] = float(aff), "affinity"
+        except OSError:
+            pass
+    if pid:
+        q, qdir = _cgroup_quota(pid)
+        if q is not None:
+            info["cgroup_quota"] = round(q, 2)
+            info["cgroup_dir"] = qdir
+            if q < info["capacity"]:
+                info["capacity"], info["source"] = round(q, 2), "cgroup quota"
+    return info
+
+
+# --------------------------------------------------------------------------
+# jstack / jcmd
+# --------------------------------------------------------------------------
+def _strip_launcher_noise(text):
+    """Drop the `Picked up JAVA_TOOL_OPTIONS: ...` banners the launcher emits."""
+    if "Picked up " not in text:
+        return text
+    return "\n".join(
+        l
+        for l in text.splitlines()
+        if not l.startswith(
+            (
+                "Picked up JAVA_TOOL_OPTIONS",
+                "Picked up _JAVA_OPTIONS",
+                "Picked up JDK_JAVA_OPTIONS",
+                "OpenJDK 64-Bit Server VM warning",
+            )
+        )
+    )
+
+
+def _tidy_error(text):
+    """Keep the last few meaningful lines of a tool's complaint."""
+    lines = [l.strip() for l in _strip_launcher_noise(text).splitlines() if l.strip()]
+    return "\n  ".join(lines[-3:]) if lines else ""
+
+
+def capture_jstack(pid, force=False, tool=None):
+    """Grab a thread dump. Try jcmd first (no -F needed), then jstack."""
+    attempts = []
+    if tool:
+        if "jcmd" in os.path.basename(tool):
+            attempts.append([tool, str(pid), "Thread.print", "-l"])
+        else:
+            attempts.append([tool, "-l", str(pid)])
+            if force:
+                attempts.append([tool, "-F", "-l", str(pid)])
+    else:
+        if shutil.which("jcmd"):
+            attempts.append(["jcmd", str(pid), "Thread.print", "-l"])
+        if shutil.which("jstack"):
+            attempts.append(["jstack", "-l", str(pid)])
+            if force:
+                attempts.append(["jstack", "-F", "-l", str(pid)])
+
+    if not attempts:
+        die(
+            "neither jcmd nor jstack found on PATH.\n"
+            "  Debian/Ubuntu: apt install openjdk-17-jdk-headless\n"
+            "  macOS:         they ship with the JDK (not the JRE)"
+        )
+
+    last_err = ""
+    for cmd in attempts:
+        rc, out, err = run(cmd, timeout=120)
+        out = _strip_launcher_noise(out)
+        if rc == 0 and ("nid=" in out or "java.lang.Thread.State" in out):
+            return out
+        last_err = _tidy_error(err or out)
+
+    hint = ""
+    low = last_err.lower()
+    if "well-known file is not secure" in low or "operation not permitted" in low:
+        hint = (
+            "\n  hint: run as the same user that owns the JVM, e.g.\n"
+            "        sudo -u $(ps -o user= -p %d) %s %d Thread.print"
+            % (pid, shutil.which("jcmd") or "jcmd", pid)
+        )
+    elif "unable to open socket file" in low:
+        hint = (
+            "\n  hint: not a JVM, or the JVM is busy in GC, or it was started with\n"
+            "        -XX:+DisableAttachMechanism.  For a wedged JVM try --force"
+        )
+    die(
+        "could not take a thread dump of pid %d: %s%s"
+        % (pid, last_err or "unknown error", hint)
+    )
+
+
+# jstack header line, all JDK versions:
+#   "main" #1 prio=5 os_prio=0 tid=0x... nid=0x3039 runnable [0x...]          (8)
+#   "main" #1 prio=5 os_prio=0 cpu=68.75ms elapsed=3.44s tid=0x... nid=0x...  (11+)
+#   "main" #1 [12345] prio=5 os_prio=0 cpu=68.75ms ... nid=0x3039 waiting...  (21+)
+#   "GC Thread#0" os_prio=0 cpu=5.00ms elapsed=3.44s tid=0x... nid=0x3042 runnable
+HEADER_RE = re.compile(r'^"(?P<name>.*)"\s+(?P<rest>.*?)\s*$')
+NID_RE = re.compile(r"\bnid=(?P<nid>0[xX][0-9a-fA-F]+|-?\d+)")
+TID_RE = re.compile(r"\btid=(?P<tid>0[xX][0-9a-fA-F]+|\d+)")
+CPU_RE = re.compile(r"\bcpu=(?P<cpu>[\d.]+)ms")
+ELAPSED_RE = re.compile(r"\belapsed=(?P<e>[\d.]+)s")
+NUM_RE = re.compile(r"^#(?P<n>\d+)\b")
+OSTID_RE = re.compile(r"\[(?P<t>\d+)\]")
+PRIO_RE = re.compile(r"\bprio=(?P<p>\d+)")
+OSPRIO_RE = re.compile(r"\bos_prio=(?P<p>-?\d+)")
+STATE_RE = re.compile(
+    r"^\s*java\.lang\.Thread\.State:\s*(?P<state>[A-Z_]+)(?P<detail>.*)$"
+)
+# trailing os-level state, e.g. '... nid=0x3039 waiting on condition  [0x00007f..]'
+OSSTATE_RE = re.compile(
+    r"\bnid=(?:0[xX][0-9a-fA-F]+|-?\d+)\s+(?P<s>[a-zA-Z][^\[]*?)\s*(?:\[0[xX][0-9a-fA-F]+\])?\s*$"
+)
+
+
+JDK_FRAME_PREFIXES = ("java.", "javax.", "jdk.", "sun.", "com.sun.", "<")
+
+
+class JThread:
+    __slots__ = (
+        "cpu_ms",
+        "daemon",
+        "elapsed_s",
+        "frames",
+        "header",
+        "jnum",
+        "locks_held",
+        "name",
+        "nid",
+        "nid_hex",
+        "nid_raw",
+        "os_prio",
+        "os_state",
+        "prio",
+        "state",
+        "state_detail",
+        "tid",
+        "waiting_on",
+    )
+
+    def __init__(self):
+        self.name = "?"
+        self.jnum = None
+        self.daemon = False
+        self.prio = None
+        self.os_prio = None
+        self.nid = None  # decimal native id == Linux TID
+        self.nid_hex = None
+        self.nid_raw = None  # exactly as the dump printed it (grep-able)
+        self.tid = None
+        self.cpu_ms = None
+        self.elapsed_s = None
+        self.state = None  # java.lang.Thread.State
+        self.state_detail = ""
+        self.os_state = ""
+        self.frames = []
+        self.locks_held = []
+        self.waiting_on = []
+        self.header = ""
+
+    @property
+    def is_jvm_internal(self):
+        """VM threads (GC, JIT, VM Periodic, ...) have no java.lang.Thread.State."""
+        return self.state is None
+
+    def top_frame(self):
+        for f in self.frames:
+            if f.startswith("at "):
+                return f[3:]
+        return ""
+
+    def java_frames(self):
+        return [f[3:] for f in self.frames if f.startswith("at ")]
+
+    def app_frame(self):
+        """First frame outside the JDK: usually the line worth opening."""
+        for f in self.java_frames():
+            if not f.startswith(JDK_FRAME_PREFIXES):
+                return f
+        return ""
+
+    def to_dict(self):
+        return {
+            "name": self.name,
+            "java_thread_number": self.jnum,
+            "daemon": self.daemon,
+            "priority": self.prio,
+            "os_priority": self.os_prio,
+            "os_tid": self.nid,  # kernel TID: the table's TID column
+            "nid": self.nid,  # same value, jstack's name for it
+            "nid_hex": self.nid_hex,
+            "nid_as_printed": self.nid_raw,
+            "jvm_tid": self.tid,  # JavaThread pointer from the dump
+            "cumulative_cpu_ms": self.cpu_ms,
+            "elapsed_s": self.elapsed_s,
+            "state": self.state or "JVM_INTERNAL",
+            "state_detail": self.state_detail.strip(),
+            "os_state": self.os_state,
+            "jvm_internal": self.is_jvm_internal,
+            "top_frame": self.top_frame(),
+            "app_frame": self.app_frame(),
+            "stack": self.frames,
+            "locks_held": self.locks_held,
+            "waiting_on": self.waiting_on,
+        }
+
+
+def parse_jstack(text):
+    """Return (threads, meta) from a thread dump."""
+    threads = []
+    meta = {
+        "deadlocks": [],
+        "header": "",
+        "jvm_version": "",
+        "timestamp": "",
+        "pid": None,
+    }
+
+    lines = text.splitlines()
+
+    for line in lines[:3]:
+        m_pid = re.match(r"^(\d+):\s*$", line.strip())
+        if m_pid:
+            meta["pid"] = int(m_pid.group(1))
+            break
+
+    for line in lines[:6]:
+        line = line.strip()
+        if re.match(r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d", line):
+            meta["timestamp"] = line
+        elif (
+            "JVM" in line
+            or ("VM" in line and "mixed mode" in line)
+            or "OpenJDK" in line
+            or "HotSpot" in line
+            or "Java HotSpot" in line
+        ):
+            meta["jvm_version"] = line
+
+    # deadlock blocks: the summary half (who waits on whom), not the repeated stacks
+    for m_dl in re.finditer(r"^Found one Java-level deadlock:.*?$", text, re.M):
+        tail = text[m_dl.start() :]
+        end = re.search(
+            r"^(?:Java stack information for the threads listed above:|Found \d+ deadlock)",
+            tail,
+            re.M,
+        )
+        meta["deadlocks"].append((tail[: end.start()] if end else tail[:4000]).strip())
+    meta["deadlock_detail"] = "\n".join(
+        re.findall(
+            r"^Java stack information for the threads listed above:.*?(?=^Found \d+ deadlock)",
+            text,
+            re.S | re.M,
+        )
+    )
+
+    cur = None
+    in_ownable = False
+    for raw in lines:
+        line = raw.rstrip("\n")
+
+        # Everything after these markers is trailer, not thread blocks. Without
+        # this the deadlock section's stacks get glued onto the last thread.
+        if re.match(
+            r"^(JNI global refs:|Found one Java-level deadlock:|"
+            r"Java stack information for the threads listed above:|"
+            r"Found \d+ deadlock)",
+            line,
+        ):
+            cur = None
+            continue
+        # deadlock section labels look like  "deadlock-alpha":
+        if cur is not None and re.match(r'^".*":\s*$', line):
+            cur = None
+            continue
+
+        m = HEADER_RE.match(line)
+        if m and ("nid=" in line or "tid=" in line or " prio=" in line):
+            in_ownable = False
+            cur = JThread()
+            threads.append(cur)
+            cur.header = line.strip()
+            cur.name = m.group("name")
+            rest = m.group("rest")
+
+            cur.daemon = bool(re.search(r"\bdaemon\b", rest))
+            mm = NUM_RE.match(rest)
+            if mm:
+                cur.jnum = int(mm.group("n"))
+            mm = OSTID_RE.search(rest)
+            if mm:
+                # JDK21+ prints the decimal native tid in brackets
+                cur.nid = int(mm.group("t"))
+            mm = PRIO_RE.search(rest)
+            if mm:
+                cur.prio = int(mm.group("p"))
+            mm = OSPRIO_RE.search(rest)
+            if mm:
+                cur.os_prio = int(mm.group("p"))
+            mm = CPU_RE.search(rest)
+            if mm:
+                cur.cpu_ms = float(mm.group("cpu"))
+            mm = ELAPSED_RE.search(rest)
+            if mm:
+                cur.elapsed_s = float(mm.group("e"))
+            mm = TID_RE.search(rest)
+            if mm:
+                cur.tid = mm.group("tid")
+            mm = NID_RE.search(rest)
+            if mm:
+                # Most JDKs print nid in hex (nid=0x3039); some recent builds
+                # print it in decimal (nid=12345).  Keep both spellings.
+                raw_nid = mm.group("nid")
+                cur.nid_raw = raw_nid
+                try:
+                    cur.nid = (
+                        int(raw_nid, 16)
+                        if raw_nid.lower().startswith("0x")
+                        else int(raw_nid)
+                    )
+                except ValueError:
+                    cur.nid = None
+                if cur.nid is not None:
+                    cur.nid_hex = (
+                        raw_nid if raw_nid.lower().startswith("0x") else hex(cur.nid)
+                    )
+            if cur.nid is not None and not cur.nid_hex:
+                cur.nid_hex = hex(cur.nid)
+            if cur.nid is not None and not cur.nid_raw:
+                cur.nid_raw = str(cur.nid)
+            mm = OSSTATE_RE.search(rest)
+            if mm:
+                cur.os_state = mm.group("s").strip()
+            continue
+
+        if cur is None:
+            continue
+
+        m = STATE_RE.match(line)
+        if m:
+            cur.state = m.group("state")
+            cur.state_detail = m.group("detail") or ""
+            continue
+
+        s = line.strip()
+        if s == "Locked ownable synchronizers:":
+            in_ownable = True  # `jstack -l`: j.u.c locks this thread owns
+            continue
+        if s == "- None":
+            continue
+        if in_ownable and s.startswith("- <"):
+            cur.locks_held.append(s[2:].strip())
+            continue
+        if s.startswith("at "):
+            cur.frames.append(s)
+        elif s.startswith("- "):
+            cur.frames.append(s)
+            if s.startswith("- locked"):
+                cur.locks_held.append(s[2:].strip())
+            elif (
+                s.startswith("- waiting to lock")
+                or s.startswith("- parking to wait")
+                or s.startswith("- waiting on")
+            ):
+                cur.waiting_on.append(s[2:].strip())
+        elif not s:
+            # blank line ends a thread block, but keep `cur` for trailing locks
+            pass
+
+    return threads, meta
+
+
+# --------------------------------------------------------------------------
+# CPU sampling: top
+# --------------------------------------------------------------------------
+TOP_CLOCK_RE = re.compile(r"^top - (\d\d):(\d\d):(\d\d)\b")
+
+
+def _top_blocks(text):
+    """Split `top -b` output into iterations, keeping each `top - hh:mm:ss` line."""
+    blocks = re.split(r"(?m)^(?=top - )", text)
+    return [b for b in blocks if "PID" in b and "%CPU" in b]
+
+
+def _top_clock(block):
+    m = TOP_CLOCK_RE.match(block)
+    if not m:
+        return None
+    h, mi, s = (int(x) for x in m.groups())
+    return h * 3600 + mi * 60 + s
+
+
+def top_window(blocks):
+    """Seconds between the last two iterations, from top's own clock.
+
+    top prints whole seconds, so this is +/-1s; good enough to label an
+    offline capture, which is what it is used for.
+    """
+    if len(blocks) < 2:
+        return None
+    a, b = _top_clock(blocks[-2]), _top_clock(blocks[-1])
+    if a is None or b is None:
+        return None
+    d = (b - a) % 86400  # an iteration pair can straddle midnight
+    return float(d) if d > 0 else None
+
+
+def sample_top(pid, delay, samples=2, top_bin="top"):
+    """Return ({tid: sample}, raw top output)."""
+    n = max(2, samples)  # first top iteration is cumulative-since-start; discard it
+    base = [top_bin, "-H", "-b", "-n", str(n), "-d", "%.2f" % delay, "-p", str(pid)]
+
+    rc, out, err = run(base + ["-w", "512"], timeout=int(delay * n) + 60)
+    if rc != 0 or "PID" not in out:
+        rc, out, err = run(base, timeout=int(delay * n) + 60)
+    if rc != 0:
+        die("top failed (rc=%d): %s\n  try --method proc" % (rc, (err or out).strip()))
+    if "PID" not in out:
+        die("could not understand top output (busybox top?).  try --method proc")
+
+    blocks = _top_blocks(out)
+    if not blocks:
+        die("no usable samples from top; try --method proc")
+    return _parse_top_block(blocks[-1]), out
+
+
+def _parse_top_block(block):
+    header = None
+    cols = []
+    result = {}
+    for line in block.splitlines():
+        if header is None:
+            st = line.strip()
+            if st.startswith("PID") and "%CPU" in st:
+                header = st
+                cols = st.split()
+            continue
+        if not line.strip():
+            continue
+        parts = line.split(None, len(cols) - 1)
+        if len(parts) < len(cols):
+            continue
+        row = dict(zip(cols, parts))
+        try:
+            tid = int(row["PID"])
+            cpu = float(row["%CPU"])
+        except (KeyError, ValueError):
+            continue
+        result[tid] = {
+            "cpu": cpu,
+            "comm": row.get("COMMAND", ""),
+            "time": row.get("TIME+", ""),
+            "state": row.get("S", ""),
+            "mem_pct": row.get("%MEM", ""),
+        }
+    return result
+
+
+def parse_top_file(text):
+    """Return (samples, window_s or None, iterations) from saved `top -H -b` output."""
+    blocks = _top_blocks(text)
+    if not blocks:
+        die("--top-file does not look like `top -H -b` output")
+    return _parse_top_block(blocks[-1]), top_window(blocks), len(blocks)
+
+
+# --------------------------------------------------------------------------
+# CPU sampling: /proc
+# --------------------------------------------------------------------------
+def _read_proc_tasks(pid):
+    """{tid: (ticks, comm, state)} from /proc/<pid>/task/*/stat."""
+    out = {}
+    base = "/proc/%d/task" % pid
+    try:
+        tids = os.listdir(base)
+    except OSError as e:
+        die("cannot read %s: %s" % (base, e))
+    for t in tids:
+        if not t.isdigit():
+            continue
+        try:
+            with open("%s/%s/stat" % (base, t)) as fh:
+                data = fh.read()
+        except OSError:
+            continue
+        parsed = _parse_stat(data)
+        if parsed:
+            out[int(t)] = parsed
+    return out
+
+
+def _parse_stat(data):
+    # comm is in parens and may contain spaces/parens -> split on the last ')'
+    try:
+        lp = data.index("(")
+        rp = data.rindex(")")
+        comm = data[lp + 1 : rp]
+        fields = data[rp + 2 :].split()
+        return int(fields[11]) + int(fields[12]), comm, fields[0]
+    except (ValueError, IndexError):
+        return None
+
+
+def _read_proc_process_ticks(pid):
+    """utime+stime of the whole process, including threads that have exited."""
+    try:
+        with open("/proc/%d/stat" % pid) as fh:
+            parsed = _parse_stat(fh.read())
+    except OSError:
+        return None
+    return parsed[0] if parsed else None
+
+
+def sample_proc(pid, delay):
+    """Return ({tid: sample}, window_s, process_cpu_pct or None)."""
+    if not IS_LINUX:
+        die("--method proc needs /proc (Linux only); use --method jstack on macOS")
+    hz = os.sysconf("SC_CLK_TCK") or 100
+    p0 = _read_proc_process_ticks(pid)
+    first = _read_proc_tasks(pid)
+    t0 = time.time()
+    time.sleep(delay)
+    second = _read_proc_tasks(pid)
+    p1 = _read_proc_process_ticks(pid)
+    elapsed = max(time.time() - t0, 1e-3)
+
+    result = {}
+    for tid, (ticks, comm, state) in second.items():
+        prev = first.get(tid)
+        # A thread missing from the first read was born inside the window, so
+        # all of its CPU time was spent inside the window: baseline 0.
+        dt = ticks - (prev[0] if prev else 0)
+        cpu = (dt / float(hz)) / elapsed * 100.0
+        result[tid] = {
+            "cpu": round(max(cpu, 0.0), 1),
+            "comm": comm,
+            "time": "%.2fs" % (ticks / float(hz)),
+            "state": state,
+            "mem_pct": "",
+        }
+    proc_pct = None
+    if p0 is not None and p1 is not None:
+        proc_pct = round(max(p1 - p0, 0) / float(hz) / elapsed * 100.0, 1)
+    return result, elapsed, proc_pct
+
+
+# --------------------------------------------------------------------------
+# CPU sampling: jstack cpu= delta (portable, incl. macOS)
+# --------------------------------------------------------------------------
+def _median(values):
+    v = sorted(values)
+    if not v:
+        return None
+    mid = len(v) // 2
+    return v[mid] if len(v) % 2 else (v[mid - 1] + v[mid]) / 2.0
+
+
+def sample_jstack_delta(pid, delay, force=False, tool=None):
+    """Two dumps, delta the per-thread cumulative `cpu=` field.
+
+    Returns (cpu_by_nid, second_dump_text, window_s, window_source).  The
+    window comes from the JVM's own per-thread `elapsed=` clock when it can,
+    which excludes however long jcmd took to attach.
+    """
+    t0 = time.time()
+    first = capture_jstack(pid, force=force, tool=tool)
+    ta, _ = parse_jstack(first)
+    time.sleep(delay)
+    t1 = time.time()
+    second = capture_jstack(pid, force=force, tool=tool)
+    tb, _ = parse_jstack(second)
+
+    if not any(t.cpu_ms is not None for t in tb):
+        die(
+            "this JDK's thread dump has no `cpu=` field (JDK 8?).\n"
+            "  use --method top (Linux) or a JDK 11+ target for macOS support"
+        )
+
+    before = {t.nid: t for t in ta if t.nid is not None and t.cpu_ms is not None}
+    deltas = [
+        t.elapsed_s - before[t.nid].elapsed_s
+        for t in tb
+        if t.nid in before
+        and t.elapsed_s is not None
+        and before[t.nid].elapsed_s is not None
+        and before[t.nid].name == t.name
+    ]
+    window = _median(deltas)
+    source = "thread elapsed= clock"
+    if not window or window <= 0:
+        window, source = max(t1 - t0, 1e-3), "wall clock"
+
+    result = {}
+    for t in tb:
+        if t.nid is None or t.cpu_ms is None:
+            continue
+        prev = before.get(t.nid)
+        if prev is not None and prev.name != t.name:
+            prev = None  # the OS reused the id for a new thread
+        if prev is None and t.elapsed_s is not None and t.elapsed_s > window + 0.5:
+            continue  # existed before the first dump but was not in it: no baseline
+        base = prev.cpu_ms if prev is not None else 0.0
+        delta = max(t.cpu_ms - base, 0.0)
+        result[t.nid] = {
+            "cpu": round(delta / (window * 1000.0) * 100.0, 1),
+            "comm": t.name[:15],
+            "time": "%.2fs" % (t.cpu_ms / 1000.0),
+            "state": (t.state or t.os_state or "")[:1],
+            "mem_pct": "",
+        }
+    return result, second, window, source
+
+
+# --------------------------------------------------------------------------
+# merge + analysis
+# --------------------------------------------------------------------------
+def normalise_name(name):
+    """pool-3-thread-17 -> pool-#-thread-#  (for grouping)"""
+    return re.sub(r"\d+", "#", name)
+
+
+def merge(threads, cpu_by_tid):
+    """Attach a cpu figure to every jstack thread; return unmatched tids too."""
+    rows = []
+    used = set()
+    for t in threads:
+        info = cpu_by_tid.get(t.nid) if t.nid is not None else None
+        if info:
+            used.add(t.nid)
+        rows.append({"thread": t, "cpu": info["cpu"] if info else None, "sample": info})
+    orphans = {tid: v for tid, v in cpu_by_tid.items() if tid not in used}
+    return rows, orphans
+
+
+def check_cpu_coverage(rows, orphans, method):
+    """Loudly refuse to pass off 'no data' as 'nothing is using CPU'."""
+    matched = sum(1 for r in rows if r["cpu"] is not None)
+    if matched or orphans:
+        if rows and matched < len(rows) * 0.5:
+            warn(
+                "only %d of %d dump threads matched a CPU sample - the dump and the "
+                "sample may be from different moments" % (matched, len(rows))
+            )
+        return
+    extra = ""
+    if method == "offline":
+        extra = (
+            "\n  the dump has no usable `cpu=` field (JDK 8 prints none), so pass "
+            "--top-file\n  with matching `top -H -b` output"
+        )
+    die(
+        "no per-thread CPU data at all: every thread would read 0.0%%, which is not "
+        "the same\n  as an idle JVM, so no report was produced.%s" % extra
+    )
+
+
+LOCK_RE = re.compile(r"<(?P<addr>0[xX][0-9a-fA-F]+)>(?:\s*\(a (?P<cls>[^)]+)\))?")
+
+
+def _lock_of(text):
+    m = LOCK_RE.search(text)
+    return (m.group("addr").lower(), m.group("cls") or "") if m else (None, "")
+
+
+def contended_locks(rows):
+    """Locks with waiters, who holds them, and what the holder is doing.
+
+    Monitors (`waiting to lock`) always count.  j.u.c locks (`parking to wait
+    for`) only count when an owner is visible (`jstack -l`), because idle pool
+    threads park on queue conditions all day and that is not contention.
+    """
+    by_nid_cpu = {}
+    owners = {}
+    for r in rows:
+        t = r["thread"]
+        by_nid_cpu[id(t)] = r["cpu"]
+        waiting_addrs = set(_lock_of(w)[0] for w in t.waiting_on)
+        for held in t.locks_held:
+            addr, _ = _lock_of(held)
+            # Object.wait() prints "- locked" for a monitor it has released
+            if addr and addr not in waiting_addrs:
+                owners.setdefault(addr, t)
+
+    waiters = OrderedDict()
+    classes = {}
+    for r in rows:
+        t = r["thread"]
+        for w in t.waiting_on:
+            if w.startswith("waiting to lock"):
+                kind = "monitor"
+            elif w.startswith("parking to wait"):
+                kind = "park"
+            else:
+                continue  # `waiting on` = Object.wait(): not contention
+            addr, cls = _lock_of(w)
+            if not addr:
+                continue
+            if kind == "park" and (addr not in owners or "ConditionObject" in cls):
+                continue
+            if owners.get(addr) is t:
+                continue
+            waiters.setdefault(addr, []).append(t)
+            classes[addr] = cls
+
+    out = []
+    for addr, ws in waiters.items():
+        owner = owners.get(addr)
+        out.append(
+            OrderedDict(
+                [
+                    ("lock", addr),
+                    ("class", classes.get(addr, "")),
+                    ("waiters", sorted(set(w.name for w in ws))),
+                    ("owner", owner.name if owner else None),
+                    ("owner_state", (owner.state or "JVM_INTERNAL") if owner else None),
+                    ("owner_cpu_pct", by_nid_cpu.get(id(owner)) if owner else None),
+                    ("owner_frame", (owner.app_frame() or owner.top_frame()) if owner else None),
+                ]
+            )
+        )
+    out.sort(key=lambda d: (-len(d["waiters"]), d["lock"]))
+    return out
+
+
+def analyse(rows, orphans, meta, ctx):
+    """Every number the text report, the JSON and the hints agree on."""
+    total = sum(r["cpu"] or 0.0 for r in rows) + sum(v["cpu"] for v in orphans.values())
+    cap = (ctx.get("capacity") or {}).get("capacity")
+    for r in rows:
+        r["share"] = (r["cpu"] / total * 100.0) if (r["cpu"] is not None and total > 0) else None
+        r["of_cap"] = (r["cpu"] / cap) if (r["cpu"] is not None and cap) else None  # a percent
+
+    groups = defaultdict(lambda: {"cpu": 0.0, "n": 0, "states": Counter()})
+    for r in rows:
+        g = groups[normalise_name(r["thread"].name)]
+        g["cpu"] += r["cpu"] or 0.0
+        g["n"] += 1
+        g["states"][r["thread"].state or "JVM_INTERNAL"] += 1
+    group_list = [
+        OrderedDict(
+            [
+                ("pattern", name),
+                ("count", g["n"]),
+                ("cpu_pct", round(g["cpu"], 2)),
+                ("share_of_jvm_pct", round(g["cpu"] / total * 100.0, 2) if total > 0 else None),
+                ("states", OrderedDict(sorted(g["states"].items(), key=lambda kv: (-kv[1], kv[0])))),
+            ]
+        )
+        for name, g in groups.items()
+    ]
+    group_list.sort(key=lambda g: (-g["cpu_pct"], g["pattern"]))
+
+    census = Counter()
+    cpu_by_state = defaultdict(float)
+    for r in rows:
+        s = r["thread"].state or "JVM_INTERNAL"
+        census[s] += 1
+        cpu_by_state[s] += r["cpu"] or 0.0
+    states = [
+        OrderedDict([("state", s), ("count", n), ("cpu_pct", round(cpu_by_state[s], 2))])
+        for s, n in sorted(census.items(), key=lambda kv: (-kv[1], -cpu_by_state[kv[0]], kv[0]))
+    ]
+
+    proc_pct = ctx.get("process_cpu_pct")
+    unattributed = None
+    if proc_pct is not None:
+        unattributed = round(max(proc_pct - total, 0.0), 1)
+
+    return {
+        "total": total,
+        "cores": total / 100.0,
+        "capacity": cap,
+        "of_capacity": (total / (cap * 100.0)) if cap else None,  # a fraction
+        "matched": sum(1 for r in rows if r["cpu"] is not None),
+        "groups": group_list,
+        "states": states,
+        "blocked": [r for r in rows if (r["thread"].state or "") == "BLOCKED"],
+        "locks": contended_locks(rows),
+        "process_pct": proc_pct,
+        "unattributed": unattributed,
+    }
+
+
+# --------------------------------------------------------------------------
+# next-investigation hints (deterministic rules, no guessing)
+# --------------------------------------------------------------------------
+# Every hint comes from a fixed rule with fixed thresholds applied to numbers
+# already in the report, so the same input always yields the same hints in the
+# same order.  Rule ids are part of the JSON contract.
+SEVERITY_RANK = {"critical": 0, "warning": 1, "info": 2}
+
+GC_NAME_RE = re.compile(
+    r"^(GC Thread|G1 Conc|G1 Refine|G1 Main Marker|G1 Young RemSet|ParGC Thread|"
+    r"Gang worker|Concurrent Mark|ZWorker|ZDriver|ZDirector|Shenandoah|CMS )"
+)
+JIT_NAME_RE = re.compile(r"^(C1 CompilerThread|C2 CompilerThread|JVMCI|Sweeper thread)")
+SELECTOR_FRAMES = (
+    "sun.nio.ch.EPoll.wait",
+    "sun.nio.ch.EPollArrayWrapper.epollWait",
+    "sun.nio.ch.KQueue.poll",
+    "sun.nio.ch.KQueueArrayWrapper.kevent0",
+    "sun.nio.ch.Net.poll",
+    "sun.nio.ch.PollArrayWrapper.poll",
+    "io.netty.channel.epoll.Native.epollWait",
+    "io.netty.channel.kqueue.Native.keventWait",
+)
+MAP_LOOP_FRAMES = ("java.util.HashMap$TreeNode.", "java.util.TreeMap.", "java.util.WeakHashMap.")
+
+# the thresholds, in % of one core unless noted
+HINT_HOT_THREAD = 80.0
+HINT_REGEX = 25.0
+HINT_MAP_LOOP = 50.0
+HINT_SELECTOR = 10.0
+HINT_GC = 50.0
+HINT_GC_SHARE = 25.0  # % of the JVM's CPU, together with >= HINT_GC / 2
+HINT_JIT = 50.0
+HINT_NATIVE = 10.0
+HINT_UNATTRIBUTED = 20.0
+HINT_CAPACITY = 0.9  # fraction of capacity
+HINT_IDLE = 5.0
+HINT_POOL = 100.0
+
+
+def _hint(rule, severity, title, detail, commands=(), evidence=(), threads=()):
+    return OrderedDict(
+        [
+            ("id", rule),
+            ("severity", severity),
+            ("title", title),
+            ("detail", detail),
+            ("evidence", list(evidence)),
+            ("commands", list(commands)),
+            ("threads", list(threads)),
+        ]
+    )
+
+
+def _where(t):
+    return t.app_frame() or t.top_frame() or "(no Java frames)"
+
+
+def investigation_hints(rows, orphans, meta, ctx, an):
+    pid = ctx["pid"] if isinstance(ctx.get("pid"), int) else "<pid>"
+    hot = sorted(
+        (r for r in rows if r["cpu"] is not None),
+        key=lambda r: (-r["cpu"], r["thread"].name),
+    )
+    total = an["total"]
+    out = []
+    covered = set()
+    # A thread can use at most one core, or less under a fractional quota:
+    # judge per-thread heat against what it could actually get.
+    cap = an["capacity"]
+    k = min(1.0, cap) if cap else 1.0
+
+    # DEADLOCK -------------------------------------------------------------
+    if meta.get("deadlocks"):
+        names = sorted(set(re.findall(r'^"(.+)":\s*$', "\n".join(meta["deadlocks"]), re.M)))
+        out.append(
+            _hint(
+                "DEADLOCK",
+                "critical",
+                "Java-level deadlock between %s" % (", ".join(names) or "several threads"),
+                "These threads wait on each other and will never progress. Fix the lock "
+                "ordering in the frames under DEADLOCK DETECTED; recovering needs a restart.",
+                commands=["jcmd %s Thread.print -l > deadlock.txt" % pid],
+                threads=names,
+            )
+        )
+
+    # LOCK_CONTENTION ------------------------------------------------------
+    for lk in [l for l in an["locks"] if len(l["waiters"]) >= 2][:3]:
+        what = lk["class"] or lk["lock"]
+        ev = ["lock <%s> (%s)" % (lk["lock"], lk["class"] or "?"), "waiters: " + ", ".join(lk["waiters"])]
+        if lk["owner"]:
+            ev.append(
+                "owner: %s, %s, %s CPU, at %s"
+                % (
+                    lk["owner"],
+                    (lk["owner_state"] or "?").lower(),
+                    "?" if lk["owner_cpu_pct"] is None else "%.1f%%" % lk["owner_cpu_pct"],
+                    lk["owner_frame"] or "?",
+                )
+            )
+            if (lk["owner_cpu_pct"] or 0) >= 50:
+                detail = (
+                    "The owner is burning CPU while it holds the lock, so every waiter "
+                    "stalls behind that hot path. Speed it up or move it out of the "
+                    "critical section."
+                )
+            else:
+                detail = (
+                    "Look at what the owner does inside the critical section: slow work "
+                    "(I/O, remote calls, big loops) there serialises every waiter."
+                )
+        else:
+            detail = (
+                "The owner is not visible in this dump. A dump taken with -l (jstack -l / "
+                "jcmd Thread.print -l) lists j.u.c lock owners too."
+            )
+        out.append(
+            _hint(
+                "LOCK_CONTENTION",
+                "warning",
+                "%d threads blocked on %s" % (len(lk["waiters"]), what),
+                detail,
+                evidence=ev,
+                commands=["jcmd %s Thread.print -l | grep -e '^\"' -e '%s'   # owner = header above '- locked'" % (pid, lk["lock"])],
+                threads=lk["waiters"] + ([lk["owner"]] if lk["owner"] else []),
+            )
+        )
+
+    # REGEX_BACKTRACKING ---------------------------------------------------
+    rx = [r for r in hot if r["cpu"] >= HINT_REGEX * k and r["thread"].top_frame().startswith("java.util.regex.")]
+    if rx:
+        first = rx[0]
+        covered.update(id(r["thread"]) for r in rx)
+        out.append(
+            _hint(
+                "REGEX_BACKTRACKING",
+                "warning",
+                "Regex backtracking in %s (%.1f%% CPU)%s"
+                % (first["thread"].name, first["cpu"], " and %d more" % (len(rx) - 1) if len(rx) > 1 else ""),
+                "The hottest frame is inside java.util.regex, the classic sign of "
+                "catastrophic backtracking. Check the pattern applied at the frame below "
+                "for nested or overlapping quantifiers such as (a+)+ or (.*)*, bound the "
+                "input length, or use possessive quantifiers / atomic groups.",
+                evidence=["%s: %s" % (r["thread"].name, _where(r["thread"])) for r in rx[:5]],
+                threads=[r["thread"].name for r in rx],
+            )
+        )
+
+    # MAP_LOOP -------------------------------------------------------------
+    ml = [
+        r
+        for r in hot
+        if r["cpu"] >= HINT_MAP_LOOP * k
+        and any(f.startswith(MAP_LOOP_FRAMES) for f in r["thread"].java_frames()[:5])
+    ]
+    if ml:
+        covered.update(id(r["thread"]) for r in ml)
+        out.append(
+            _hint(
+                "MAP_LOOP",
+                "warning",
+                "Hot loop inside a non-concurrent map in %s" % ml[0]["thread"].name,
+                "A HashMap/TreeMap modified by several threads without locking can corrupt "
+                "its internal structure and spin forever. Check whether the map used at the "
+                "frame below is shared; use ConcurrentHashMap or guard it.",
+                evidence=["%s: %s" % (r["thread"].name, _where(r["thread"])) for r in ml[:5]],
+                threads=[r["thread"].name for r in ml],
+            )
+        )
+
+    # SELECTOR_SPIN --------------------------------------------------------
+    sel = [
+        r
+        for r in hot
+        if r["cpu"] >= HINT_SELECTOR * k and r["thread"].top_frame().startswith(SELECTOR_FRAMES)
+    ]
+    if sel:
+        covered.update(id(r["thread"]) for r in sel)
+        out.append(
+            _hint(
+                "SELECTOR_SPIN",
+                "warning",
+                "I/O selector thread %s uses %.1f%% CPU while waiting" % (sel[0]["thread"].name, sel[0]["cpu"]),
+                "A thread parked in epoll/kqueue should use almost no CPU. This much means "
+                "the selector wakes up constantly: a busy socket, a spurious-wakeup spin, or "
+                "a Netty/NIO selector rebuild loop. Check the library's logs for selector "
+                "warnings and look at connection churn.",
+                evidence=["%s: %.1f%% in %s" % (r["thread"].name, r["cpu"], r["thread"].top_frame()) for r in sel[:5]],
+                commands=["ss -tanp | grep 'pid=%s,' | wc -l" % pid],
+                threads=[r["thread"].name for r in sel],
+            )
+        )
+
+    # GC_CPU ---------------------------------------------------------------
+    gc = [r for r in rows if r["cpu"] and r["thread"].is_jvm_internal and GC_NAME_RE.match(r["thread"].name)]
+    gc_total = sum(r["cpu"] for r in gc)
+    gc_share = gc_total / total * 100.0 if total > 0 else 0.0
+    if gc_total >= HINT_GC or (gc_total >= HINT_GC / 2 and gc_share >= HINT_GC_SHARE):
+        out.append(
+            _hint(
+                "GC_CPU",
+                "warning",
+                "Garbage collection uses %.1f%% CPU (%.0f%% of the JVM)" % (gc_total, gc_share),
+                "GC threads are a big share of the CPU. Either the heap is too small for the "
+                "live set (look for a rising old gen / back-to-back collections) or the "
+                "allocation rate is very high. Watch GC before tuning anything else.",
+                commands=["jstat -gcutil %s 1000 10" % pid, "jcmd %s GC.heap_info" % pid],
+                threads=[r["thread"].name for r in sorted(gc, key=lambda r: (-r["cpu"], r["thread"].name))],
+            )
+        )
+
+    # JIT_CPU --------------------------------------------------------------
+    jit = [r for r in rows if r["cpu"] and JIT_NAME_RE.match(r["thread"].name)]
+    jit_total = sum(r["cpu"] for r in jit)
+    if jit_total >= HINT_JIT:
+        out.append(
+            _hint(
+                "JIT_CPU",
+                "info",
+                "JIT compiler threads use %.1f%% CPU" % jit_total,
+                "Normal for a few minutes after start-up or a deploy. If it persists, look for "
+                "a deoptimisation loop or a full code cache.",
+                commands=["jcmd %s Compiler.queue" % pid, "jcmd %s Compiler.codecache" % pid],
+                threads=[r["thread"].name for r in sorted(jit, key=lambda r: (-r["cpu"], r["thread"].name))],
+            )
+        )
+
+    # HOT_THREAD -----------------------------------------------------------
+    busy = [
+        r
+        for r in hot
+        if r["cpu"] >= HINT_HOT_THREAD * k
+        and not r["thread"].is_jvm_internal
+        and id(r["thread"]) not in covered
+    ]
+    for r in busy[:3]:
+        t = r["thread"]
+        out.append(
+            _hint(
+                "HOT_THREAD",
+                "warning",
+                "%s is CPU-bound (%.1f%% of a core%s)" % (
+                    t.name, r["cpu"], ", quota %s cores" % _fmt_cores(cap) if k < 1.0 else ""),
+                "Start at the frame below. A thread pinned near 100% is either a loop that "
+                "does not finish or genuinely heavy work: sample it a few more times, and "
+                "if the frame never moves it is a loop.",
+                evidence=["%s: %s" % (t.name, _where(t))],
+                commands=[
+                    "%s -p %s -c 5 -i 2 -f 0 --summary-only" % (PROG, pid),
+                    "asprof -d 30 -e cpu -t -f flame.html %s   # async-profiler" % pid,
+                ],
+                threads=[t.name],
+            )
+        )
+
+    # POOL_SATURATED -------------------------------------------------------
+    for g in an["groups"]:
+        busy_states = sum(n for s, n in g["states"].items() if s in ("RUNNABLE", "BLOCKED"))
+        if g["count"] >= 3 and busy_states == g["count"] and g["cpu_pct"] >= HINT_POOL and "#" in g["pattern"]:
+            out.append(
+                _hint(
+                    "POOL_SATURATED",
+                    "warning",
+                    "All %d %s threads are busy (%.1f%% CPU)" % (g["count"], g["pattern"], g["cpu_pct"]),
+                    "No thread in this pool is idle, so new work queues up behind them. "
+                    "Find out whether the work got slower (see the hottest frames) or "
+                    "whether there is simply more of it; a bigger pool only helps in the "
+                    "second case, and only if there is CPU capacity left.",
+                    threads=[],
+                )
+            )
+
+    # NATIVE_THREAD --------------------------------------------------------
+    nat = sorted(
+        ((tid, v) for tid, v in orphans.items() if v["cpu"] >= HINT_NATIVE),
+        key=lambda kv: (-kv[1]["cpu"], kv[0]),
+    )
+    if nat:
+        tid, v = nat[0]
+        out.append(
+            _hint(
+                "NATIVE_THREAD",
+                "info",
+                "Thread %d (%s) uses %.1f%% CPU but is not in the thread dump" % (tid, v["comm"] or "?", v["cpu"]),
+                "Threads the dump does not list are JVM internals it omits, native threads "
+                "from JNI libraries or agents, or threads that started after the dump. A "
+                "native profiler can see inside them.",
+                evidence=["tid %d (%s): %.1f%%" % (t_, v_["comm"] or "?", v_["cpu"]) for t_, v_ in nat[:5]],
+                commands=[
+                    "cat /proc/%s/task/%d/comm" % (pid, tid),
+                    "perf top -t %d" % tid,
+                ],
+            )
+        )
+
+    # UNATTRIBUTED_CPU -----------------------------------------------------
+    if an["unattributed"] is not None and an["unattributed"] >= HINT_UNATTRIBUTED:
+        out.append(
+            _hint(
+                "UNATTRIBUTED_CPU",
+                "warning",
+                "%.1f%% CPU was used by threads that no longer exist" % an["unattributed"],
+                "The process used more CPU than its live threads account for, so threads "
+                "are being created and destroyed inside the sample window. Look for code "
+                "that creates a Thread or an executor per request.",
+                evidence=["process %.1f%% vs live threads %.1f%%" % (an["process_pct"], total)],
+                commands=["jcmd %s PerfCounter.print | grep -E 'java.threads.(started|live)'" % pid],
+            )
+        )
+
+    # CAPACITY_SATURATED ---------------------------------------------------
+    if an["of_capacity"] is not None and an["of_capacity"] >= HINT_CAPACITY:
+        cap = ctx["capacity"]
+        cmds = []
+        if cap.get("source") == "cgroup quota":
+            cmds.append("cat %s/cpu.stat   # nr_throttled, throttled_time/usec"
+                        % (cap.get("cgroup_dir") or "/sys/fs/cgroup"))
+        out.append(
+            _hint(
+                "CAPACITY_SATURATED",
+                "warning",
+                "The JVM uses %.0f%% of the %s cores it can get" % (an["of_capacity"] * 100, _fmt_cores(an["capacity"])),
+                "It is CPU-bound at its limit (%s), so latency grows with any extra load. "
+                "Cut the hottest work below or raise the limit."
+                % cap.get("source", "?"),
+                commands=cmds,
+            )
+        )
+
+    # JVM_IDLE -------------------------------------------------------------
+    if total < HINT_IDLE and not meta.get("deadlocks"):
+        out.append(
+            _hint(
+                "JVM_IDLE",
+                "info",
+                "The JVM was nearly idle (%.1f%% CPU) during the sample" % total,
+                "If it is slow, it is waiting rather than computing: look at BLOCKED and "
+                "WAITING threads, connection pools and downstream calls. If the problem "
+                "comes and goes, sample repeatedly so you catch it.",
+                commands=["%s -p %s -c 30 -i 10 --summary-only" % (PROG, pid)],
+            )
+        )
+
+    # LIFETIME_AVERAGE / SHORT_WINDOW / LOW_COVERAGE -----------------------
+    if ctx.get("method_id") == "offline-lifetime":
+        out.append(
+            _hint(
+                "LIFETIME_AVERAGE",
+                "info",
+                "These are lifetime averages, not current CPU",
+                "Without --top-file the only CPU figure is each thread's total since it "
+                "started. Capture top next to the dump to see what is hot right now.",
+                commands=["top -H -b -n 2 -d 5 -p %s -w 512 > top.txt; jcmd %s Thread.print -l > dump.txt" % (pid, pid)],
+            )
+        )
+    win = ctx.get("window")
+    if win is not None and win < 1.0:
+        out.append(
+            _hint(
+                "SHORT_WINDOW",
+                "info",
+                "The sample window was only %.1fs" % win,
+                "Short windows are noisy, especially with top's 0.1%-of-a-tick rounding. "
+                "Use a few seconds unless you are chasing something very brief.",
+                commands=["%s -p %s -d 5" % (PROG, pid)],
+            )
+        )
+    if rows and an["matched"] < len(rows) * 0.5:
+        out.append(
+            _hint(
+                "LOW_COVERAGE",
+                "info",
+                "Only %d of %d dump threads had a CPU sample" % (an["matched"], len(rows)),
+                "The dump and the CPU sample look like they come from different moments "
+                "(or different JVMs). Capture them together.",
+            )
+        )
+
+    order = {h: i for i, h in enumerate(HINT_RULES)}
+    out.sort(key=lambda h: (SEVERITY_RANK[h["severity"]], order.get(h["id"], 99)))
+    return out
+
+
+# the order rules are reported in, within a severity; also the list of valid ids
+HINT_RULES = (
+    "DEADLOCK",
+    "PERSISTENT_LOOP",
+    "LOCK_CONTENTION",
+    "REGEX_BACKTRACKING",
+    "MAP_LOOP",
+    "HOT_THREAD",
+    "SELECTOR_SPIN",
+    "GC_CPU",
+    "CAPACITY_SATURATED",
+    "UNATTRIBUTED_CPU",
+    "POOL_SATURATED",
+    "BURSTY_THREAD",
+    "NATIVE_THREAD",
+    "JIT_CPU",
+    "JVM_IDLE",
+    "LIFETIME_AVERAGE",
+    "SHORT_WINDOW",
+    "LOW_COVERAGE",
+)
+
+
+def summary_hints(summary, pid):
+    """Rules that only make sense across several rounds."""
+    pid = pid if isinstance(pid, int) else "<pid>"
+    out = []
+    n = summary["rounds"]
+    for t in summary["threads"]:
+        frame = t["dominant_top_frame"] or ""
+        if (
+            n >= 3
+            and t["classification"] == "persistent"
+            and frame
+            and t["dominant_top_frame_rounds"] == t["rounds_hot"]
+            and "Native Method" not in frame
+        ):
+            out.append(
+                _hint(
+                    "PERSISTENT_LOOP",
+                    "warning",
+                    "%s sat on the same frame in all %d hot rounds" % (t["name"], t["rounds_hot"]),
+                    "Hot in every round and the top frame never moved: this is very likely "
+                    "a loop that does not terminate (or a single huge unit of work). The "
+                    "frame below is where to look.",
+                    evidence=["%s (avg %.1f%%, max %.1f%%)" % (frame, t["avg_cpu_pct"], t["max_cpu_pct"])]
+                    + (["called from %s" % t["dominant_app_frame"]]
+                       if t["dominant_app_frame"] and t["dominant_app_frame"] != frame else []),
+                    threads=[t["name"]],
+                )
+            )
+    bursty = [
+        t for t in summary["threads"]
+        if t["classification"] in ("spike", "recurring") and t["max_cpu_pct"] >= HINT_HOT_THREAD
+    ]
+    if bursty:
+        out.append(
+            _hint(
+                "BURSTY_THREAD",
+                "info",
+                "%d thread(s) spike to a full core only in some rounds" % len(bursty),
+                "Bursty load: the cause may not be on screen in any single snapshot. Take "
+                "shorter rounds with no pause, or run a continuous profiler.",
+                evidence=["%s: max %.1f%%, hot in %d/%d rounds" % (t["name"], t["max_cpu_pct"], t["rounds_hot"], n) for t in bursty[:5]],
+                commands=["%s -p %s -c 20 -d 1 --summary-only" % (PROG, pid)],
+                threads=[t["name"] for t in bursty],
+            )
+        )
+    order = {h: i for i, h in enumerate(HINT_RULES)}
+    out.sort(key=lambda h: (SEVERITY_RANK[h["severity"]], order.get(h["id"], 99)))
+    return out
+
+
+# --------------------------------------------------------------------------
+# repeated sampling: remember every round, then say what persisted
+# --------------------------------------------------------------------------
+class Tracker:
+    def __init__(self, hot_threshold):
+        self.hot = hot_threshold
+        self.rounds = 0
+        self.threads = OrderedDict()
+        self.totals = []
+        self.hint_counts = Counter()
+        self.started = None
+        self.last = None
+        self.pid = None
+
+    def add(self, rows, orphans, an, hints, pid):
+        now = time.time()
+        if self.started is None:
+            self.started = now
+        self.last = now
+        self.pid = pid
+        idx = self.rounds
+        self.rounds += 1
+        for r in rows:
+            if r["cpu"] is None:
+                continue
+            t = r["thread"]
+            self._record((t.nid, t.name), t.name, t.nid, r["cpu"], t.top_frame(), t.app_frame(), idx)
+        for tid, v in orphans.items():
+            self._record((tid, "native:" + v["comm"]), v["comm"] or "?", tid, v["cpu"], "", "", idx)
+        for e in self.threads.values():
+            while len(e["series"]) < self.rounds:
+                e["series"].append(None)
+        self.totals.append(round(an["total"], 2))
+        for h in hints:
+            self.hint_counts[h["id"]] += 1
+
+    def _record(self, key, name, nid, cpu, frame, app, idx):
+        e = self.threads.get(key)
+        if e is None:
+            e = {"name": name, "nid": nid, "series": [None] * idx, "frames": Counter(),
+                 "all_frames": Counter(), "apps": Counter()}
+            self.threads[key] = e
+        e["series"].append(cpu)
+        if frame:
+            e["all_frames"][frame] += 1
+            if cpu >= self.hot:
+                e["frames"][frame] += 1
+        if app and cpu >= self.hot:
+            e["apps"][app] += 1
+
+    def summary(self, interrupted=False):
+        n = self.rounds
+        threads = []
+        for e in self.threads.values():
+            vals = [v for v in e["series"] if v is not None]
+            hot_n = sum(1 for v in vals if v >= self.hot)
+            if not hot_n:
+                continue
+            frames = e["frames"] or e["all_frames"]
+            frame, frame_n = frames.most_common(1)[0] if frames else ("", 0)
+            app = e["apps"].most_common(1)[0][0] if e["apps"] else ""
+            if hot_n >= max(2, -(-4 * n // 5)):  # hot in >= 80% of rounds
+                cls = "persistent"
+            elif hot_n >= 2:
+                cls = "recurring"
+            else:
+                cls = "spike"
+            threads.append(
+                OrderedDict(
+                    [
+                        ("name", e["name"]),
+                        ("os_tid", e["nid"]),
+                        ("rounds_present", len(vals)),
+                        ("rounds_hot", hot_n),
+                        ("avg_cpu_pct", round(sum(vals) / float(n), 2)),
+                        ("max_cpu_pct", max(vals)),
+                        ("last_cpu_pct", e["series"][-1]),
+                        ("series", list(e["series"])),
+                        ("dominant_top_frame", frame),
+                        ("dominant_top_frame_rounds", frame_n),
+                        ("dominant_app_frame", app),
+                        ("classification", cls),
+                    ]
+                )
+            )
+        threads.sort(key=lambda t: (-t["avg_cpu_pct"], t["name"], t["os_tid"] or 0))
+        s = OrderedDict(
+            [
+                ("schema", SCHEMA_ID),
+                ("schema_version", SCHEMA_VERSION),
+                ("kind", "summary"),
+                ("tool", OrderedDict([("name", PROG), ("version", __version__)])),
+                ("pid", self.pid if isinstance(self.pid, int) else None),
+                ("rounds", n),
+                ("duration_s", round((self.last or 0) - (self.started or 0), 2)),
+                ("interrupted", bool(interrupted)),
+                ("hot_threshold_pct", self.hot),
+                ("total_cpu_pct_series", list(self.totals)),
+                ("threads", threads),
+                ("hint_counts", OrderedDict(sorted(self.hint_counts.items(), key=lambda kv: (-kv[1], kv[0])))),
+            ]
+        )
+        s["hints"] = summary_hints(s, self.pid)
+        return s
+
+
+# --------------------------------------------------------------------------
+# text rendering
+# --------------------------------------------------------------------------
+def state_color(state):
+    """Looked up late, so --no-color (which blanks C) is honoured."""
+    return {
+        "RUNNABLE": C.GREEN,
+        "BLOCKED": C.RED,
+        "WAITING": C.GREY,
+        "TIMED_WAITING": C.GREY,
+        "NEW": C.SKY,
+        "TERMINATED": C.MAROON,
+        "JVM_INTERNAL": C.LAVENDER,
+    }.get(state, C.TEXT)
+
+
+def cpu_color(pct):
+    """Catppuccin heat ramp: teal -> green -> yellow -> peach -> red (% of one core)."""
+    if pct >= 80:
+        return C.RED + C.BOLD
+    if pct >= 40:
+        return C.PEACH + C.BOLD
+    if pct >= 15:
+        return C.YELLOW
+    if pct >= 5:
+        return C.GREEN
+    if pct > 0:
+        return C.TEAL
+    return C.GREY
+
+
+def load_color(frac):
+    """Colour for a fraction of total capacity."""
+    if frac is None:
+        return C.TEXT
+    return cpu_color(frac * 100.0)
+
+
+def bar(pct, width=14):
+    """A full bar is one core: the most a single thread can use."""
+    filled = int(round(max(min(pct, 100.0), 0.0) / 100.0 * width))
+    return G.BAR * filled + G.EMPTY * (width - filled)
+
+
+def sparkline(series, full=100.0):
+    out = []
+    for v in series:
+        if v is None:
+            out.append(G.GAP)
+        else:
+            lvl = int(min(max(v, 0.0), full) / full * (len(G.SPARK) - 1) + 0.5)
+            out.append(G.SPARK[lvl])
+    return "".join(out)
+
+
+def shorten_frame(frame, width):
+    """Compress com.foo.bar.Baz.qux -> c.f.b.Baz.qux when it will not fit."""
+    if len(frame) <= width:
+        return frame
+    m = re.match(r"^([\w.$]+)\.([\w$<>]+)\((.*)\)$", frame)
+    if m:
+        cls, meth, loc = m.groups()
+        parts = cls.split(".")
+        pkg = ".".join(p[0] for p in parts[:-1])
+        short = "%s.%s.%s(%s)" % (pkg, parts[-1], meth, loc)
+        if len(short) <= width:
+            return short
+        frame = short
+    return frame[: max(1, width - len(G.ELLIPSIS))] + G.ELLIPSIS
+
+
+def clip(text, width):
+    return text if len(text) <= width else text[: max(1, width - len(G.ELLIPSIS))] + G.ELLIPSIS
+
+
+def _fmt_cores(c):
+    if c is None:
+        return "?"
+    return ("%d" % c) if abs(c - round(c)) < 1e-9 else ("%.2f" % c).rstrip("0").rstrip(".")
+
+
+def _wrap(text, width, indent):
+    import textwrap
+
+    return textwrap.wrap(text, max(30, width - len(indent)), initial_indent=indent, subsequent_indent=indent)
+
+
+def scaled(pct, ctx, args):
+    """%CPU in the unit the user asked for (--scale)."""
+    if pct is None:
+        return None
+    cap = (ctx.get("capacity") or {}).get("capacity")
+    if args.scale == "capacity" and cap:
+        return pct / cap
+    return pct
+
+
+def section(title, color=None):
+    return "\n%s  %s%s\n" % (C.BOLD + (color if color is not None else C.LAVENDER), title, C.RESET)
+
+
+def render_banner(ctx, an, args, width, title="JVM thread CPU report"):
+    out = []
+    t = " %s " % title
+    out.append("\n%s%s%s\n" % (C.BOLD + C.MAUVE, t.center(width, "="), C.RESET))
+    line1 = "pid %s" % (ctx["pid"] if ctx.get("pid") is not None else "(from file)")
+    if ctx.get("ppid") is not None:
+        line1 += " %s(ppid %s)%s" % (C.DIM, ctx["ppid"], C.RESET)
+    if ctx.get("cmd"):
+        line1 += "   %s%s%s" % (C.DIM, shorten_frame(ctx["cmd"], max(20, width - len(line1) - 6)), C.RESET)
+    out.append("  %s\n" % line1)
+
+    win = ctx.get("window")
+    win_txt = "%.1fs" % win if win is not None else "n/a"
+    if ctx.get("window_source") and win is not None:
+        win_txt += " %s(%s)%s" % (C.DIM, ctx["window_source"], C.RESET)
+    out.append(
+        "  %ssampled:%s %s   %smethod:%s %s   %swindow:%s %s\n"
+        % (C.DIM, C.RESET, ctx["when"], C.DIM, C.RESET, ctx["method"], C.DIM, C.RESET, win_txt)
+    )
+
+    cap = ctx.get("capacity") or {}
+    if cap.get("capacity"):
+        bits = []
+        if cap.get("host") is not None and cap["source"] != "host":
+            bits.append("host %s" % cap["host"])
+        if cap.get("affinity") is not None and cap["affinity"] != cap.get("host"):
+            bits.append("affinity %s" % cap["affinity"])
+        if cap.get("cgroup_quota") is not None:
+            bits.append("cgroup quota %s" % _fmt_cores(cap["cgroup_quota"]))
+        detail = (" %s(%s; limited by %s)%s" % (C.DIM, ", ".join(bits), cap["source"], C.RESET)) if bits else (
+            " %s(%s)%s" % (C.DIM, cap["source"], C.RESET)
+        )
+        cap_txt = "%s cores%s" % (_fmt_cores(cap["capacity"]), detail)
+    else:
+        cap_txt = "%sunknown - pass --cpus N to normalise%s" % (C.DIM, C.RESET)
+    proc = ctx.get("proc")
+    extra = ""
+    if proc:
+        extra = "   %srss:%s %.0f MB   %suptime:%s %s" % (
+            C.DIM, C.RESET, proc["rss_kb"] / 1024.0, C.DIM, C.RESET, proc["elapsed"]
+        )
+    out.append("  %scapacity:%s %s%s\n" % (C.DIM, C.RESET, cap_txt, extra))
+
+    out.append(
+        "  %sthreads:%s %d in dump, %d with CPU samples, %d not in dump\n"
+        % (C.DIM, C.RESET, ctx["n_threads"], an["matched"], ctx["n_orphans"])
+    )
+
+    total = an["total"]
+    line = "  %stotal CPU:%s %s%.1f%%%s %s= %.2f cores%s" % (
+        C.DIM, C.RESET, load_color(an["of_capacity"]), total, C.RESET, C.DIM, an["cores"], C.RESET,
+    )
+    if an["of_capacity"] is not None:
+        line += "   %s%s%s %s%.1f%% of capacity%s" % (
+            load_color(an["of_capacity"]),
+            bar(an["of_capacity"] * 100.0, 20),
+            C.RESET,
+            C.BOLD,
+            an["of_capacity"] * 100.0,
+            C.RESET,
+        )
+    out.append(line + "\n")
+    if an["process_pct"] is not None:
+        out.append(
+            "  %sprocess CPU:%s %.1f%%   %snot in a live thread:%s %.1f%%\n"
+            % (C.DIM, C.RESET, an["process_pct"], C.DIM, C.RESET, an["unattributed"] or 0.0)
+        )
+    if args.scale == "capacity" and cap.get("capacity"):
+        out.append("  %s(%%CAP below: 100%% = all %s cores; %%JVM = share of this JVM's CPU)%s\n"
+                   % (C.DIM, _fmt_cores(cap["capacity"]), C.RESET))
+    else:
+        out.append("  %s(%%CPU below: 100%% = one core, like top; %%JVM = share of this JVM's CPU)%s\n"
+                   % (C.DIM, C.RESET))
+    return "".join(out)
+
+
+def render_hints(hints, width):
+    if not hints:
+        return ""
+    tag = {"critical": (C.BG_RED + C.BOLD, " CRIT "), "warning": (C.PEACH + C.BOLD, " WARN "), "info": (C.BLUE, " INFO ")}
+    out = [section("NEXT STEPS") ]
+    for h in hints:
+        col, label = tag[h["severity"]]
+        out.append("  %s%s%s %s%s%s %s[%s]%s\n" % (col, label, C.RESET, C.BOLD, h["title"], C.RESET, C.DIM, h["id"], C.RESET))
+        for l in _wrap(h["detail"], width, "         "):
+            out.append("%s%s%s\n" % (C.TEXT, l, C.RESET))
+        for e in h["evidence"]:
+            out.append("         %s%s %s%s\n" % (C.DIM, G.ARROW, clip(e, width - 12), C.RESET))
+        for c in h["commands"]:
+            out.append("         %s$ %s%s\n" % (C.SKY, c, C.RESET))
+    return "".join(out)
+
+
+def render(rows, orphans, meta, ctx, an, hints, args):
+    width = term_width()
+    out = []
+    w = out.append
+    title = "JVM thread CPU report"
+    if ctx.get("round_label"):
+        title += " " + ctx["round_label"]
+    w(render_banner(ctx, an, args, width, title))
+
+    # ---- deadlocks first: nothing else matters if the JVM is wedged -------
+    if meta.get("deadlocks"):
+        w("\n%s%s%s\n" % (C.BG_RED + C.BOLD, " DEADLOCK DETECTED ".center(width), C.RESET))
+        for d in meta["deadlocks"]:
+            for l in d.splitlines():
+                w("  %s%s%s\n" % (C.RED, l, C.RESET))
+
+    # ---- hot thread table -------------------------------------------------
+    shown = [r for r in rows if r["cpu"] is not None and r["cpu"] >= args.min_cpu]
+    shown.sort(key=lambda r: (-(r["cpu"] or 0), r["thread"].name))
+    if args.top:
+        shown = shown[: args.top]
+
+    unit = "%CAP" if (args.scale == "capacity" and an["capacity"]) else "%CPU"
+    w(section("HOTTEST THREADS"))
+    hdr = "  %6s  %-14s  %4s  %7s  %8s  %-10s  %-14s  %s" % (
+        unit, "", "%JVM", "PID", "TID", "NID(dump)", "STATE", "THREAD NAME",
+    )
+    w("%s%s%s\n" % (C.DIM, hdr, C.RESET))
+    w("%s  %s%s\n" % (C.DIM, "-" * (width - 4), C.RESET))
+    if not shown:
+        w("  %s(no thread above %.1f%% CPU)%s\n" % (C.GREY, args.min_cpu, C.RESET))
+
+    owner = ctx.get("pid")
+    owner = owner if owner is not None else "?"
+    name_width = max(20, width - 83)
+
+    def share_txt(share):
+        return "%3.0f%%" % share if share is not None else "   -"
+
+    for r in shown:
+        t = r["thread"]
+        pct = r["cpu"]
+        state = t.state or "JVM_INTERNAL"
+        w(
+            "  %s%6.1f%s  %s%s%s  %s%s%s  %s%7s%s  %8s  %-10s  %s%-14s%s  %s%s%s\n"
+            % (
+                cpu_color(pct), scaled(pct, ctx, args), C.RESET,
+                cpu_color(pct), bar(pct), C.RESET,
+                C.DIM, share_txt(r["share"]), C.RESET,
+                C.GREY, owner, C.RESET,
+                t.nid if t.nid is not None else "?",
+                t.nid_raw or "?",
+                state_color(state), state, C.RESET,
+                C.BOLD if pct >= 40 else "", clip(t.name, name_width), C.RESET,
+            )
+        )
+        frame = t.top_frame()
+        if frame and not args.no_frames:
+            w("          %s%s %s%s\n" % (C.DIM, G.ARROW, shorten_frame(frame, width - 14), C.RESET))
+        if t.waiting_on:
+            w("          %s%s %s%s\n" % (C.PEACH, G.WAIT, clip(t.waiting_on[0], width - 14), C.RESET))
+
+    # ---- threads the dump did not name ------------------------------------
+    orph = [(tid, v) for tid, v in sorted(orphans.items(), key=lambda kv: (-kv[1]["cpu"], kv[0])) if v["cpu"] >= args.min_cpu]
+    if orph:
+        w(
+            "\n%s  NOT IN THREAD DUMP%s %s(GC / JIT / VM internals, native threads, or started after the dump)%s\n"
+            % (C.BOLD + C.LAVENDER, C.RESET, C.DIM, C.RESET)
+        )
+        total = an["total"]
+        for tid, v in orph:
+            share = v["cpu"] / total * 100.0 if total > 0 else None
+            w(
+                "  %s%6.1f%s  %s%s%s  %s%s%s  %s%7s%s  %8s  %-10s  %s%-14s%s  %s%s%s\n"
+                % (
+                    cpu_color(v["cpu"]), scaled(v["cpu"], ctx, args), C.RESET,
+                    cpu_color(v["cpu"]), bar(v["cpu"]), C.RESET,
+                    C.DIM, share_txt(share), C.RESET,
+                    C.GREY, owner, C.RESET,
+                    tid, hex(tid),
+                    C.BLUE, "native", C.RESET,
+                    C.DIM, clip(v["comm"], name_width), C.RESET,
+                )
+            )
+
+    # ---- grouped roll-up --------------------------------------------------
+    if not args.no_groups:
+        interesting = [g for g in an["groups"] if g["cpu_pct"] > 0 or g["count"] > 1][:12]
+        if interesting:
+            w(section("CPU BY THREAD GROUP"))
+            w("%s  %6s  %4s  %5s  %-34s %s%s\n" % (C.DIM, unit, "%JVM", "COUNT", "NAME PATTERN", "STATES", C.RESET))
+            for g in interesting:
+                states = ", ".join(
+                    "%s%s%d" % (s.split("_")[0].lower(), G.TIMES, c) for s, c in list(g["states"].items())[:3]
+                )
+                w(
+                    "  %s%6.1f%s  %s%s%s  %5d  %-34s %s%s%s\n"
+                    % (
+                        cpu_color(g["cpu_pct"]), scaled(g["cpu_pct"], ctx, args), C.RESET,
+                        C.DIM, share_txt(g["share_of_jvm_pct"]), C.RESET,
+                        g["count"], clip(g["pattern"], 34),
+                        C.DIM, states, C.RESET,
+                    )
+                )
+
+    # ---- state census -----------------------------------------------------
+    w(section("THREAD STATES"))
+    parts = [
+        "%s%s%s %d (%.1f%% cpu)" % (state_color(s["state"]), s["state"].lower(), C.RESET, s["count"], s["cpu_pct"])
+        for s in an["states"]
+    ]
+    w("  " + "   ".join(parts) + "\n")
+
+    blocked = an["blocked"]
+    if blocked:
+        w("\n%s  BLOCKED THREADS%s %s(%d)%s\n" % (C.BOLD + C.RED, C.RESET, C.DIM, len(blocked), C.RESET))
+        for r in blocked[:10]:
+            t = r["thread"]
+            w(
+                "  %s%-30s%s %s%s%s\n"
+                % (C.RED, clip(t.name, 30), C.RESET, C.DIM,
+                   clip(t.waiting_on[0] if t.waiting_on else t.top_frame(), width - 36), C.RESET)
+            )
+
+    # ---- full stacks for the hottest --------------------------------------
+    if args.frames > 0:
+        deep = [r for r in shown if (r["cpu"] or 0) >= max(args.min_cpu, 0.1)][: args.stacks]
+        if deep:
+            w(section("STACKS OF THE HOTTEST THREADS"))
+            for r in deep:
+                t = r["thread"]
+                state = t.state or "JVM_INTERNAL"
+                nid_disp = t.nid_raw or "?"
+                if t.nid_hex and t.nid_hex != t.nid_raw:
+                    nid_disp += " (%s)" % t.nid_hex
+                w(
+                    '\n  %s%.1f%%%s  %s"%s"%s  %spid=%s tid=%s nid=%s %s%s\n'
+                    % (cpu_color(r["cpu"]), r["cpu"], C.RESET, C.BOLD, t.name, C.RESET,
+                       C.DIM, owner, t.nid, nid_disp, state.lower(), C.RESET)
+                )
+                if not t.frames:
+                    w("      %s(no java frames - native/VM thread)%s\n" % (C.GREY, C.RESET))
+                for f in t.frames[: args.frames]:
+                    if f.startswith("- "):
+                        w("      %s%s%s\n" % (C.PEACH, shorten_frame(f, width - 8), C.RESET))
+                    else:
+                        w("      %s\n" % shorten_frame(f, width - 8))
+                if len(t.frames) > args.frames:
+                    w("      %s... %d more frames%s\n" % (C.GREY, len(t.frames) - args.frames, C.RESET))
+
+    if not args.no_hints:
+        w(render_hints(hints, width))
+    w("\n")
+    sys.stdout.write("".join(out))
+    sys.stdout.flush()
+
+
+def render_summary(summary, args):
+    width = term_width()
+    out = []
+    w = out.append
+    n = summary["rounds"]
+    title = " persistent hotspots: %d rounds over %.1fs%s " % (
+        n, summary["duration_s"], " (interrupted)" if summary["interrupted"] else "")
+    w("\n%s%s%s\n" % (C.BOLD + C.MAUVE, title.center(width, "="), C.RESET))
+    w("  %shot = at least %.0f%% of one core in a round;  avg counts absent rounds as 0%s\n"
+      % (C.DIM, summary["hot_threshold_pct"], C.RESET))
+    tot = summary["total_cpu_pct_series"]
+    if tot:
+        peak = max(tot) or 1.0
+        w("  %stotal CPU per round:%s %s  %savg %.1f%%  min %.1f%%  max %.1f%%%s\n" % (
+            C.DIM, C.RESET, sparkline(tot[-60:], full=peak), C.DIM,
+            sum(tot) / len(tot), min(tot), max(tot), C.RESET))
+
+    threads = summary["threads"]
+    if args.top:
+        threads = threads[: args.top]
+    w(section("THREADS THAT WERE HOT"))
+    if not threads:
+        w("  %s(no thread reached %.0f%% of a core in any round)%s\n" % (C.GREY, summary["hot_threshold_pct"], C.RESET))
+    else:
+        spark_w = max(9, min(n, 30))
+        w("%s  %6s  %6s  %5s  %-*s  %-10s  %s%s\n" % (
+            C.DIM, "AVG", "MAX", "HOT", spark_w, "PER ROUND", "PATTERN", "THREAD", C.RESET))
+        cls_col = {"persistent": C.RED, "recurring": C.PEACH, "spike": C.YELLOW}
+        for t in threads:
+            w("  %s%6.1f%s  %6.1f  %5s  %s%-*s%s  %s%-10s%s  %s%s%s\n" % (
+                cpu_color(t["avg_cpu_pct"]), t["avg_cpu_pct"], C.RESET,
+                t["max_cpu_pct"],
+                "%d/%d" % (t["rounds_hot"], n),
+                cpu_color(t["max_cpu_pct"]), spark_w, sparkline(t["series"][-spark_w:]), C.RESET,
+                cls_col.get(t["classification"], ""), t["classification"], C.RESET,
+                C.BOLD, clip(t["name"], max(20, width - 50 - spark_w)), C.RESET,
+            ))
+            if t["dominant_top_frame"] and not args.no_frames:
+                w("          %s%s %s  (%d/%d hot rounds)%s\n" % (
+                    C.DIM, G.ARROW, shorten_frame(t["dominant_top_frame"], width - 40),
+                    t["dominant_top_frame_rounds"], t["rounds_hot"], C.RESET))
+
+    if summary["hint_counts"]:
+        w(section("HINTS RAISED ACROSS ROUNDS"))
+        w("  " + "   ".join("%s %s%s%d%s" % (k, C.DIM, G.TIMES, v, C.RESET) for k, v in summary["hint_counts"].items()) + "\n")
+    if not args.no_hints:
+        w(render_hints(summary["hints"], width))
+    w("\n")
+    sys.stdout.write("".join(out))
+    sys.stdout.flush()
+
+
+# --------------------------------------------------------------------------
+# JSON
+# --------------------------------------------------------------------------
+def _r2(v):
+    return None if v is None else round(v, 2)
+
+
+def build_report(rows, orphans, meta, ctx, an, hints):
+    cap = ctx.get("capacity") or {}
+    pid = ctx.get("pid") if isinstance(ctx.get("pid"), int) else None
+    total = an["total"]
+    p = OrderedDict()
+    p["schema"] = SCHEMA_ID
+    p["schema_version"] = SCHEMA_VERSION
+    p["kind"] = "report"
+    p["tool"] = OrderedDict([("name", PROG), ("version", __version__)])
+    p["round"] = ctx.get("round", 1)
+    p["rounds_planned"] = ctx.get("rounds_planned", 1)
+    p["generated_at"] = ctx["when"]
+    p["sampled_at"] = ctx.get("sampled_at")
+    p["pid"] = pid
+    p["ppid"] = ctx.get("ppid")
+    p["cmdline"] = ctx.get("cmd")
+    p["method"] = ctx["method"]
+    p["method_id"] = ctx["method_id"]
+    p["sample_window_s"] = _r2(ctx.get("window"))
+    p["window_source"] = ctx.get("window_source")
+    p["cpu_count"] = cap.get("host")
+    p["capacity"] = OrderedDict(
+        [
+            ("host_cpus", cap.get("host")),
+            ("affinity_cpus", cap.get("affinity")),
+            ("cgroup_quota_cores", cap.get("cgroup_quota")),
+            ("capacity_cores", cap.get("capacity")),
+            ("source", cap.get("source", "unknown")),
+            ("cgroup_path", cap.get("cgroup_dir")),
+        ]
+    )
+    p["cpu"] = OrderedDict(
+        [
+            ("unit", "percent_of_one_core"),
+            ("total_pct", _r2(total)),
+            ("total_cores", round(an["cores"], 3)),
+            ("pct_of_capacity", _r2(an["of_capacity"] * 100.0) if an["of_capacity"] is not None else None),
+            ("process_pct", an["process_pct"]),
+            ("unattributed_pct", an["unattributed"]),
+        ]
+    )
+    p["total_thread_cpu_pct"] = _r2(total)
+    p["process"] = ctx.get("proc")
+    p["coverage"] = OrderedDict(
+        [("threads_in_dump", len(rows)), ("threads_with_cpu", an["matched"]), ("unmatched_native", len(orphans))]
+    )
+    p["deadlocks"] = meta.get("deadlocks", [])
+    p["deadlock_stacks"] = meta.get("deadlock_detail", "")
+    p["threads"] = []
+    for r in sorted(rows, key=lambda r: (-(r["cpu"] if r["cpu"] is not None else -1), r["thread"].name)):
+        d = r["thread"].to_dict()
+        d["pid"] = pid
+        d["cpu_pct"] = r["cpu"]
+        d["cpu_pct_of_capacity"] = _r2(r["of_cap"])
+        d["share_of_jvm_pct"] = _r2(r["share"])
+        d["os_comm"] = r["sample"]["comm"] if r["sample"] else None
+        d["cpu_time_total"] = r["sample"]["time"] if r["sample"] else None
+        p["threads"].append(d)
+    p["unmatched_native_threads"] = [
+        OrderedDict(
+            [
+                ("pid", pid),
+                ("os_tid", tid),
+                ("nid_hex", hex(tid)),
+                ("cpu_pct", v["cpu"]),
+                ("share_of_jvm_pct", _r2(v["cpu"] / total * 100.0) if total > 0 else None),
+                ("comm", v["comm"]),
+            ]
+        )
+        for tid, v in sorted(orphans.items(), key=lambda kv: (-kv[1]["cpu"], kv[0]))
+    ]
+    p["groups"] = an["groups"]
+    p["states"] = an["states"]
+    p["contended_locks"] = an["locks"]
+    p["hints"] = hints
+    return p
+
+
+def build_series(reports, summary):
+    return OrderedDict(
+        [
+            ("schema", SCHEMA_ID),
+            ("schema_version", SCHEMA_VERSION),
+            ("kind", "series"),
+            ("tool", OrderedDict([("name", PROG), ("version", __version__)])),
+            ("reports", reports),
+            ("summary", summary),
+        ]
+    )
+
+
+def emit_json(doc, compact=False):
+    if compact:
+        sys.stdout.write(json.dumps(doc, separators=(",", ":")) + "\n")
+    else:
+        json.dump(doc, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+    sys.stdout.flush()
+
+
+# --------------------------------------------------------------------------
+# JSON Schema (draft 2020-12) for -o json / -o jsonl.  `--print-schema`
+# prints it; schema/jthread-cpu-v1.schema.json in the repo is this, verbatim.
+# --------------------------------------------------------------------------
+def json_schema():
+    nstr = {"type": ["string", "null"]}
+    nint = {"type": ["integer", "null"]}
+    nnum = {"type": ["number", "null"]}
+    strs = {"type": "array", "items": {"type": "string"}}
+    header_props = OrderedDict(
+        [
+            ("schema", {"type": "string", "description": "URL of this schema."}),
+            ("schema_version", {
+                "type": "string",
+                "pattern": r"^1\.\d+\.\d+$",
+                "description": "SemVer of the output contract. MAJOR changes break consumers; "
+                               "MINOR only adds fields or enum values; consumers must ignore unknown keys.",
+            }),
+            ("tool", {
+                "type": "object",
+                "required": ["name", "version"],
+                "properties": {"name": {"const": PROG}, "version": {"type": "string"}},
+            }),
+        ]
+    )
+    hint = {
+        "type": "object",
+        "required": ["id", "severity", "title", "detail", "evidence", "commands", "threads"],
+        "properties": OrderedDict(
+            [
+                ("id", {"enum": list(HINT_RULES), "description": "Stable rule identifier."}),
+                ("severity", {"enum": ["critical", "warning", "info"]}),
+                ("title", {"type": "string"}),
+                ("detail", {"type": "string"}),
+                ("evidence", strs),
+                ("commands", dict(strs, description="Shell commands to run next; <pid> when the pid is unknown.")),
+                ("threads", strs),
+            ]
+        ),
+    }
+    thread = {
+        "type": "object",
+        "required": ["name", "pid", "os_tid", "nid", "nid_hex", "state", "jvm_internal", "cpu_pct",
+                     "top_frame", "stack", "locks_held", "waiting_on"],
+        "properties": OrderedDict(
+            [
+                ("name", {"type": "string"}),
+                ("pid", nint),
+                ("java_thread_number", nint),
+                ("daemon", {"type": "boolean"}),
+                ("priority", nint),
+                ("os_priority", nint),
+                ("os_tid", dict(nint, description="Kernel TID (Linux); what top -H shows as PID.")),
+                ("nid", dict(nint, description="Same value as os_tid; jstack's name for it.")),
+                ("nid_hex", nstr),
+                ("nid_as_printed", nstr),
+                ("jvm_tid", nstr),
+                ("cumulative_cpu_ms", nnum),
+                ("elapsed_s", nnum),
+                ("state", {"type": "string", "description": "java.lang.Thread.State, or JVM_INTERNAL."}),
+                ("state_detail", {"type": "string"}),
+                ("os_state", {"type": "string"}),
+                ("jvm_internal", {"type": "boolean"}),
+                ("cpu_pct", dict(nnum, description="Percent of one core over the window; null = no sample.")),
+                ("cpu_pct_of_capacity", nnum),
+                ("share_of_jvm_pct", nnum),
+                ("os_comm", nstr),
+                ("cpu_time_total", nstr),
+                ("top_frame", {"type": "string"}),
+                ("app_frame", {"type": "string", "description": "First frame outside the JDK."}),
+                ("stack", strs),
+                ("locks_held", strs),
+                ("waiting_on", strs),
+            ]
+        ),
+    }
+    report_props = OrderedDict(header_props)
+    report_props.update(
+        OrderedDict(
+            [
+                ("kind", {"const": "report"}),
+                ("round", {"type": "integer", "minimum": 1}),
+                ("rounds_planned", dict(nint, description="null = until interrupted (--watch).")),
+                ("generated_at", {"type": "string", "description": "Human-readable time, as shown in the text report."}),
+                ("sampled_at", dict(nstr, description="ISO 8601; no UTC offset when it came from a dump file.")),
+                ("pid", nint),
+                ("ppid", nint),
+                ("cmdline", nstr),
+                ("method", {"type": "string", "description": "Human-readable sampling method."}),
+                ("method_id", {"enum": ["top", "proc", "jstack", "offline-top", "offline-lifetime"]}),
+                ("sample_window_s", nnum),
+                ("window_source", nstr),
+                ("cpu_count", dict(nint, description="Online CPUs on the sampling host (legacy)."))
+                ,
+                ("capacity", {
+                    "type": "object",
+                    "required": ["host_cpus", "affinity_cpus", "cgroup_quota_cores", "capacity_cores", "source"],
+                    "properties": OrderedDict([
+                        ("host_cpus", nint),
+                        ("affinity_cpus", nint),
+                        ("cgroup_quota_cores", nnum),
+                        ("capacity_cores", dict(nnum, description="Cores the JVM can use: min of the above.")),
+                        ("source", {"enum": ["host", "affinity", "cgroup quota", "--cpus", "unknown"]}),
+                        ("cgroup_path", dict(nstr, description="cgroup directory whose quota applies.")),
+                    ]),
+                }),
+                ("cpu", {
+                    "type": "object",
+                    "required": ["unit", "total_pct", "total_cores", "pct_of_capacity", "process_pct", "unattributed_pct"],
+                    "properties": OrderedDict([
+                        ("unit", {"const": "percent_of_one_core"}),
+                        ("total_pct", {"type": "number"}),
+                        ("total_cores", {"type": "number"}),
+                        ("pct_of_capacity", nnum),
+                        ("process_pct", dict(nnum, description="Whole-process CPU (--method proc only).")),
+                        ("unattributed_pct", dict(nnum, description="process_pct minus live threads.")),
+                    ]),
+                }),
+                ("total_thread_cpu_pct", {"type": "number"}),
+                ("process", {"type": ["object", "null"]}),
+                ("coverage", {
+                    "type": "object",
+                    "required": ["threads_in_dump", "threads_with_cpu", "unmatched_native"],
+                    "properties": {
+                        "threads_in_dump": {"type": "integer"},
+                        "threads_with_cpu": {"type": "integer"},
+                        "unmatched_native": {"type": "integer"},
+                    },
+                }),
+                ("deadlocks", strs),
+                ("deadlock_stacks", {"type": "string"}),
+                ("threads", {"type": "array", "items": {"$ref": "#/$defs/thread"}}),
+                ("unmatched_native_threads", {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["os_tid", "nid_hex", "cpu_pct", "comm"],
+                        "properties": OrderedDict([
+                            ("pid", nint), ("os_tid", {"type": "integer"}), ("nid_hex", {"type": "string"}),
+                            ("cpu_pct", {"type": "number"}), ("share_of_jvm_pct", nnum), ("comm", {"type": "string"}),
+                        ]),
+                    },
+                }),
+                ("groups", {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["pattern", "count", "cpu_pct", "states"],
+                        "properties": OrderedDict([
+                            ("pattern", {"type": "string"}), ("count", {"type": "integer"}),
+                            ("cpu_pct", {"type": "number"}), ("share_of_jvm_pct", nnum),
+                            ("states", {"type": "object", "additionalProperties": {"type": "integer"}}),
+                        ]),
+                    },
+                }),
+                ("states", {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["state", "count", "cpu_pct"],
+                        "properties": {"state": {"type": "string"}, "count": {"type": "integer"}, "cpu_pct": {"type": "number"}},
+                    },
+                }),
+                ("contended_locks", {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["lock", "class", "waiters", "owner"],
+                        "properties": OrderedDict([
+                            ("lock", {"type": "string"}), ("class", {"type": "string"}), ("waiters", strs),
+                            ("owner", nstr), ("owner_state", nstr), ("owner_cpu_pct", nnum), ("owner_frame", nstr),
+                        ]),
+                    },
+                }),
+                ("hints", {"type": "array", "items": {"$ref": "#/$defs/hint"}}),
+            ]
+        )
+    )
+    report = {
+        "type": "object",
+        "required": ["schema", "schema_version", "kind", "tool", "round", "pid", "method", "method_id",
+                     "sample_window_s", "capacity", "cpu", "total_thread_cpu_pct", "coverage", "deadlocks",
+                     "threads", "unmatched_native_threads", "groups", "states", "contended_locks", "hints"],
+        "properties": report_props,
+    }
+    summary_props = OrderedDict(header_props)
+    summary_props.update(
+        OrderedDict(
+            [
+                ("kind", {"const": "summary"}),
+                ("pid", nint),
+                ("rounds", {"type": "integer", "minimum": 1}),
+                ("duration_s", {"type": "number"}),
+                ("interrupted", {"type": "boolean"}),
+                ("hot_threshold_pct", {"type": "number"}),
+                ("total_cpu_pct_series", {"type": "array", "items": {"type": "number"}}),
+                ("threads", {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["name", "os_tid", "rounds_present", "rounds_hot", "avg_cpu_pct", "max_cpu_pct",
+                                     "last_cpu_pct", "series", "dominant_top_frame", "dominant_top_frame_rounds",
+                                     "classification"],
+                        "properties": OrderedDict([
+                            ("name", {"type": "string"}), ("os_tid", nint),
+                            ("rounds_present", {"type": "integer"}), ("rounds_hot", {"type": "integer"}),
+                            ("avg_cpu_pct", {"type": "number"}), ("max_cpu_pct", {"type": "number"}),
+                            ("last_cpu_pct", nnum),
+                            ("series", {"type": "array", "items": nnum}),
+                            ("dominant_top_frame", {"type": "string"}),
+                            ("dominant_top_frame_rounds", {"type": "integer"}),
+                            ("dominant_app_frame", {"type": "string", "description": "Most common first non-JDK frame while hot."}),
+                            ("classification", {"enum": ["persistent", "recurring", "spike"]}),
+                        ]),
+                    },
+                }),
+                ("hint_counts", {"type": "object", "additionalProperties": {"type": "integer"}}),
+                ("hints", {"type": "array", "items": {"$ref": "#/$defs/hint"}}),
+            ]
+        )
+    )
+    summary = {
+        "type": "object",
+        "required": ["schema", "schema_version", "kind", "tool", "pid", "rounds", "duration_s", "interrupted",
+                     "hot_threshold_pct", "total_cpu_pct_series", "threads", "hint_counts", "hints"],
+        "properties": summary_props,
+    }
+    series_props = OrderedDict(header_props)
+    series_props.update(
+        OrderedDict(
+            [
+                ("kind", {"const": "series"}),
+                ("reports", {"type": "array", "items": {"$ref": "#/$defs/report"}}),
+                ("summary", {"$ref": "#/$defs/summary"}),
+            ]
+        )
+    )
+    series = {
+        "type": "object",
+        "required": ["schema", "schema_version", "kind", "tool", "reports", "summary"],
+        "properties": series_props,
+    }
+    return OrderedDict(
+        [
+            ("$schema", "https://json-schema.org/draft/2020-12/schema"),
+            ("$id", SCHEMA_ID),
+            ("title", "jthread-cpu output"),
+            ("description",
+             "One JSON document from `jthread-cpu -o json` (a report, or a series when "
+             "--count > 1), or one line of `-o jsonl` (a report per round, then a summary). "
+             "Schema version %s. Unknown keys may appear in later MINOR versions." % SCHEMA_VERSION),
+            ("x-schema-version", SCHEMA_VERSION),
+            ("oneOf", [{"$ref": "#/$defs/report"}, {"$ref": "#/$defs/summary"}, {"$ref": "#/$defs/series"}]),
+            ("$defs", OrderedDict(
+                [("report", report), ("summary", summary), ("series", series), ("thread", thread), ("hint", hint)]
+            )),
+        ]
+    )
+
+
+# --------------------------------------------------------------------------
+# main
+# --------------------------------------------------------------------------
+def build_parser():
+    p = argparse.ArgumentParser(
+        prog=PROG,
+        description="Match Java threads from a thread dump to per-thread CPU usage.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""\
+examples:
+  %(prog)s                          autodetect the JVM, 2 second sample
+  %(prog)s -p 4242 -n 10 -d 5       top 10 threads over a 5 second window
+  %(prog)s -p 4242 -c 6 -i 10       6 rounds, 10s apart, then a persistence summary
+  %(prog)s -p 4242 --watch          redraw every round until Ctrl-C
+  %(prog)s -p 4242 --method proc    skip top, read /proc/PID/task directly
+  %(prog)s -p 4242 --method jstack  portable sampling (macOS), target JDK 11+
+  %(prog)s -p 4242 -o json | jq .   machine readable (schema: --print-schema)
+  %(prog)s -p 4242 --theme latte    catppuccin latte (light terminals)
+  %(prog)s --jstack-file dump.txt --top-file top.txt --cpus 8
+                                    offline: correlate files captured earlier
+
+capture for later offline analysis:
+  top -H -b -n 2 -d 5 -p $PID -w 512 > top.txt ; jcmd $PID Thread.print -l > dump.txt
+""",
+    )
+    g = p.add_argument_group("what to sample")
+    g.add_argument("-p", "--pid", type=int, help="JVM pid (default: autodetect)")
+    g.add_argument("-d", "--delay", type=float, default=None,
+                   help="sample window in seconds (default: 2)")
+    g.add_argument("--method", choices=["auto", "top", "proc", "jstack"], default="auto",
+                   help="where per-thread CPU comes from (default: auto)")
+    g.add_argument("--samples", type=int, default=2,
+                   help="top iterations per round; the last one is used (default: 2)")
+    g.add_argument("--jstack-file", help="read a thread dump from a file instead of attaching")
+    g.add_argument("--top-file", help="read `top -H -b` output from a file")
+    g.add_argument("--force", action="store_true", help="allow jstack -F on a hung JVM")
+    g.add_argument("--top-bin", default="top", help="path to the top binary")
+    g.add_argument("--jstack-bin", help="path to jcmd or jstack when the JDK is not on PATH")
+
+    g = p.add_argument_group("repeated sampling")
+    g.add_argument("-c", "--count", type=int, default=None,
+                   help="number of rounds, 0 = until Ctrl-C (default: 1, or 0 with --watch)")
+    g.add_argument("-i", "--interval", type=float, default=0.0,
+                   help="pause between rounds in seconds (default: 0)")
+    g.add_argument("-w", "--watch", action="store_true",
+                   help="redraw the report every round (clears the screen on a terminal)")
+    g.add_argument("--summary-only", action="store_true",
+                   help="with several rounds, print only the final persistence summary")
+    g.add_argument("--hot", type=float, default=25.0,
+                   help="%%CPU of one core that counts as hot in the summary (default: 25)")
+    g.add_argument("--save-dir", metavar="DIR",
+                   help="keep every round's raw dump, CPU sample and JSON report in DIR")
+
+    g = p.add_argument_group("CPU units")
+    g.add_argument("--cpus", type=float, default=None,
+                   help="CPU capacity in cores (default: detected from host, affinity and "
+                        "cgroup quota; required to normalise offline files)")
+    g.add_argument("--scale", choices=["core", "capacity"], default="core",
+                   help="core: 100%% = one core, like top (default); "
+                        "capacity: 100%% = every core the JVM can use")
+
+    g = p.add_argument_group("output")
+    g.add_argument("-n", "--top", type=int, default=15,
+                   help="show this many hottest threads, 0 = all (default: 15)")
+    g.add_argument("-f", "--frames", type=int, default=8,
+                   help="stack frames to print per hot thread, 0 = none (default: 8)")
+    g.add_argument("-s", "--stacks", type=int, default=5,
+                   help="how many threads get a full stack (default: 5)")
+    g.add_argument("-m", "--min-cpu", type=float, default=0.0,
+                   help="hide threads below this %%CPU (default: 0)")
+    g.add_argument("-o", "--output", choices=["text", "json", "jsonl"], default="text",
+                   help="text, json (one document), or jsonl (one line per round + a "
+                        "summary line); default: text")
+    g.add_argument("--json", action="store_true", help=argparse.SUPPRESS)  # legacy alias
+    g.add_argument("--print-schema", action="store_true",
+                   help="print the JSON Schema for -o json/jsonl and exit")
+    g.add_argument("--no-hints", action="store_true", help="omit the NEXT STEPS section")
+    g.add_argument("--theme", default="mocha", choices=["mocha", "macchiato", "frappe", "latte", "auto"],
+                   help="catppuccin flavour; latte is the light one, "
+                        "auto guesses from COLORFGBG (default: mocha)")
+    g.add_argument("--no-color", action="store_true", help="disable ANSI colour")
+    g.add_argument("--ascii", action="store_true", help="ASCII bars and arrows instead of box-drawing glyphs")
+    g.add_argument("--no-frames", action="store_true", help="omit the one-line top frame")
+    g.add_argument("--no-groups", action="store_true", help="omit the thread-group roll-up")
+    p.add_argument("--list", action="store_true", help="list candidate JVMs and exit")
+    p.add_argument("-V", "--version", action="version", version="%(prog)s " + __version__)
+    return p
+
+
+def _iso_now():
+    return datetime.datetime.now().astimezone().replace(microsecond=0).isoformat()
+
+
+def _iso_from_dump(ts):
+    try:
+        return datetime.datetime.strptime(ts[:19], "%Y-%m-%d %H:%M:%S").isoformat()
+    except (ValueError, TypeError):
+        return None
+
+
+def save_round(save_dir, idx, raw, report):
+    try:
+        os.makedirs(save_dir, exist_ok=True)
+        stem = os.path.join(save_dir, "round-%03d" % idx)
+        with open(stem + "-dump.txt", "w") as fh:
+            fh.write(raw["dump"])
+        if raw.get("top"):
+            with open(stem + "-top.txt", "w") as fh:
+                fh.write(raw["top"])
+        elif raw.get("cpu") is not None:
+            with open(stem + "-cpu.json", "w") as fh:
+                json.dump({str(k): v for k, v in sorted(raw["cpu"].items())}, fh, indent=1)
+        with open(stem + "-report.json", "w") as fh:
+            json.dump(report, fh, indent=2)
+    except OSError as e:
+        warn("could not save round %d to %s: %s" % (idx, save_dir, e))
+
+
+def resolve_method(args):
+    method = args.method
+    if method == "auto":
+        method = "top" if IS_LINUX and shutil.which(args.top_bin) else ("proc" if IS_LINUX else "jstack")
+    if method in ("top", "proc") and not IS_LINUX:
+        why = " (macOS has no `top -H`, and nid there is a mach port, not a TID)" if IS_MAC else ""
+        warn("--method %s needs Linux%s; using --method jstack instead" % (method, why))
+        method = "jstack"
+    return method
+
+
+def collect_live(pid, method, args, capacity):
+    """One round: sample CPU, take a dump, join.  Returns (rows, orphans, meta, ctx, raw)."""
+    raw = {"dump": None, "top": None, "cpu": None}
+    dump = None
+    proc_pct = None
+    sampled_at = _iso_now()
+    when = time.strftime("%Y-%m-%d %H:%M:%S %Z")
+    if method == "jstack":
+        cpu, dump, window, wsrc = sample_jstack_delta(pid, args.delay, force=args.force, tool=args.jstack_bin)
+        label = "two thread dumps, cpu= delta"
+    elif method == "proc":
+        cpu, window, proc_pct = sample_proc(pid, args.delay)
+        wsrc = "measured"
+        label = "/proc/%d/task" % pid
+    else:
+        cpu, raw["top"] = sample_top(pid, args.delay, args.samples, args.top_bin)
+        window, wsrc = args.delay, "top -d"
+        label = "top -H -b"
+    raw["cpu"] = cpu
+    if dump is None:
+        dump = capture_jstack(pid, force=args.force, tool=args.jstack_bin)
+    raw["dump"] = dump
+    threads, meta = parse_jstack(dump)
+    if not threads:
+        die("the thread dump contained no threads - is pid %d really a JVM?" % pid)
+    rows, orphans = merge(threads, cpu)
+    check_cpu_coverage(rows, orphans, method)
+    ctx = {
+        "pid": pid,
+        "cmd": process_cmdline(pid),
+        "when": when,
+        "sampled_at": sampled_at,
+        "method": label,
+        "method_id": method,
+        "window": window,
+        "window_source": wsrc,
+        "capacity": capacity,
+        "proc": process_cpu_percent(pid),
+        "ppid": parent_pid(pid),
+        "process_cpu_pct": proc_pct,
+        "n_threads": len(rows),
+        "n_orphans": len(orphans),
+    }
+    return rows, orphans, meta, ctx, raw
+
+
+def collect_offline(args):
+    dump = _strip_launcher_noise(read_text_file(args.jstack_file, "--jstack-file"))
+    threads, meta = parse_jstack(dump)
+    if not threads:
+        die(
+            "no thread dump found in %s\n"
+            '  expected jstack/jcmd Thread.print output with "name" ... nid= lines' % args.jstack_file
+        )
+    top_raw = None
+    if args.top_file:
+        top_raw = read_text_file(args.top_file, "--top-file")
+        cpu, window, iters = parse_top_file(top_raw)
+        wsrc = "top clock" if window else None
+        if window is None:
+            if iters < 2:
+                warn("--top-file has a single top iteration; its %CPU may not cover a "
+                     "short recent window (capture with -n 2)")
+            window = args.delay
+            wsrc = "-d" if window else None
+        method, method_id = "files (top + jstack)", "offline-top"
+    else:
+        # no top data: fall back to the dump's own cumulative cpu= field
+        cpu = {}
+        for t in threads:
+            if t.nid is not None and t.cpu_ms is not None and t.elapsed_s:
+                cpu[t.nid] = {
+                    "cpu": round(t.cpu_ms / (t.elapsed_s * 1000.0) * 100.0, 1),
+                    "comm": t.name[:15],
+                    "time": "%.2fs" % (t.cpu_ms / 1000.0),
+                    "state": "",
+                    "mem_pct": "",
+                }
+        window, wsrc = None, None
+        method, method_id = "jstack cpu= / lifetime average", "offline-lifetime"
+        warn("no --top-file: showing lifetime average CPU, not current usage")
+    rows, orphans = merge(threads, cpu)
+    check_cpu_coverage(rows, orphans, "offline")
+    capacity = cpu_capacity(override=args.cpus) if args.cpus else OrderedDict(
+        [("host", None), ("affinity", None), ("cgroup_quota", None), ("capacity", None), ("source", "unknown"),
+         ("cgroup_dir", None)]
+    )
+    ctx = {
+        "pid": args.pid or meta.get("pid"),
+        "cmd": args.jstack_file,
+        "when": meta.get("timestamp") or "unknown",
+        "sampled_at": _iso_from_dump(meta.get("timestamp")),
+        "method": method,
+        "method_id": method_id,
+        "window": window,
+        "window_source": wsrc,
+        "capacity": capacity,
+        "proc": None,
+        "ppid": None,
+        "process_cpu_pct": None,
+        "n_threads": len(rows),
+        "n_orphans": len(orphans),
+    }
+    return rows, orphans, meta, ctx, {"dump": dump, "top": top_raw, "cpu": cpu}
+
+
+def main(argv=None):
+    """Console entry point (also what `pip install` wires the command to)."""
+    try:
+        return _main(argv)
+    except KeyboardInterrupt:
+        sys.stderr.write("\ninterrupted\n")
+        return 130
+    except BrokenPipeError:
+        # `| head`, `| jq` exiting early: stop quietly, like other CLI tools.
+        # Point stdout at devnull so the interpreter's final flush cannot fail.
+        try:
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, sys.stdout.fileno())
+        except (OSError, ValueError, AttributeError):
+            pass
+        return 0
+
+
+def _main(argv=None):
+    args = build_parser().parse_args(argv)
+
+    if args.print_schema:
+        json.dump(json_schema(), sys.stdout, indent=2)
+        sys.stdout.write("\n")
+        return 0
+
+    setup_encoding(args.ascii)
+
+    if args.json:  # --json still works, -o json is the way
+        args.output = "json"
+    machine = args.output in ("json", "jsonl")
+
+    if args.no_color or machine or os.environ.get("NO_COLOR") or not sys.stdout.isatty():
+        C.disable()
+    else:
+        C.apply_theme(args.theme)
+    if args.top == 0:
+        args.top = None
+    if args.delay is not None and args.delay <= 0:
+        die("--delay must be > 0")
+    if args.cpus is not None and args.cpus <= 0:
+        die("--cpus must be > 0")
+    if args.count is not None and args.count < 0:
+        die("--count must be >= 0")
+    if args.interval < 0:
+        die("--interval must be >= 0")
+
+    if args.list:
+        pids = find_java_pids()
+        if not pids:
+            print("no JVMs found")
+            return 1
+        for pid, name in pids:
+            print("%7d  %s" % (pid, name))
+        return 0
+
+    # ---- offline: always exactly one round --------------------------------
+    if args.jstack_file:
+        if args.count not in (None, 1) or args.watch:
+            warn("--count/--watch need a live JVM; analysing the files once")
+        rows, orphans, meta, ctx, raw = collect_offline(args)
+        if args.scale == "capacity" and not ctx["capacity"]["capacity"]:
+            warn("--scale capacity needs --cpus N for offline files; showing % of one core")
+        an = analyse(rows, orphans, meta, ctx)
+        hints = investigation_hints(rows, orphans, meta, ctx, an)
+        report = build_report(rows, orphans, meta, ctx, an, hints)
+        if args.save_dir:
+            save_round(args.save_dir, 1, raw, report)
+        if machine:
+            emit_json(report, compact=args.output == "jsonl")
+        else:
+            render(rows, orphans, meta, ctx, an, hints, args)
+        return 0
+
+    # ---- live --------------------------------------------------------------
+    if args.delay is None:
+        args.delay = 2.0
+    count = args.count if args.count is not None else (0 if args.watch else 1)
+    if count == 0 and args.output == "json":
+        die("-o json writes one document at the end; for an open-ended run use -o jsonl "
+            "(one line per round), or give --count")
+
+    pid = args.pid
+    if pid is None:
+        pids = find_java_pids()
+        if not pids:
+            die("no running JVM found; pass --pid, or --jstack-file for offline analysis")
+        if len(pids) > 1:
+            sys.stderr.write("%sseveral JVMs are running; pick one with --pid:%s\n" % (C.YELLOW, C.RESET))
+            for p_, name in pids:
+                sys.stderr.write("  %7d  %s\n" % (p_, name))
+            return 2
+        pid = pids[0][0]
+
+    if not pid_alive(pid):
+        die("pid %d is not running" % pid)
+
+    method = resolve_method(args)
+    capacity = cpu_capacity(pid, override=args.cpus)
+    tracker = Tracker(args.hot)
+    tracker.started = time.time()
+    reports = []
+    interrupted = False
+    clear = args.watch and not machine and sys.stdout.isatty()
+    multi = count != 1
+
+    try:
+        while True:
+            idx = tracker.rounds + 1
+            if idx > 1 and not pid_alive(pid):
+                warn("pid %d exited after %d round(s)" % (pid, tracker.rounds))
+                break
+            rows, orphans, meta, ctx, raw = collect_live(pid, method, args, capacity)
+            ctx["round"] = idx
+            ctx["rounds_planned"] = count or None
+            if multi:
+                ctx["round_label"] = "round %d/%s" % (idx, count if count else ("∞" if G.BAR == "█" else "inf"))
+            an = analyse(rows, orphans, meta, ctx)
+            hints = investigation_hints(rows, orphans, meta, ctx, an)
+            tracker.add(rows, orphans, an, hints, pid)
+            report = build_report(rows, orphans, meta, ctx, an, hints)
+            if args.save_dir:
+                save_round(args.save_dir, idx, raw, report)
+
+            if args.output == "jsonl":
+                emit_json(report, compact=True)
+            elif args.output == "json":
+                reports.append(report)
+            elif multi and args.summary_only:
+                hottest = max((r for r in rows if r["cpu"] is not None), key=lambda r: r["cpu"], default=None)
+                sys.stderr.write(
+                    "round %d%s  total %.1f%%  hottest %s\n"
+                    % (idx, "/%d" % count if count else "", an["total"],
+                       "%s %.1f%%" % (hottest["thread"].name, hottest["cpu"]) if hottest else "-")
+                )
+            else:
+                if clear:
+                    sys.stdout.write("\033[H\033[2J")
+                render(rows, orphans, meta, ctx, an, hints, args)
+
+            if count and tracker.rounds >= count:
+                break
+            if args.interval:
+                time.sleep(args.interval)
+    except KeyboardInterrupt:
+        interrupted = True
+        if not tracker.rounds:
+            raise
+
+    summary = tracker.summary(interrupted) if (multi and tracker.rounds) else None
+    if args.save_dir and summary:
+        try:
+            with open(os.path.join(args.save_dir, "summary.json"), "w") as fh:
+                json.dump(summary, fh, indent=2)
+        except OSError as e:
+            warn("could not save the summary: %s" % e)
+
+    if args.output == "json":
+        emit_json(build_series(reports, summary) if multi else reports[0])
+    elif args.output == "jsonl":
+        if summary:
+            emit_json(summary, compact=True)
+    elif summary:
+        render_summary(summary, args)
+    return 130 if interrupted else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

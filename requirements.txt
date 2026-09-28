@@ -1,0 +1,12 @@
+# jthread-cpu runs on the Python standard library alone - nothing to pip install.
+#
+# This file exists so `pip install -r requirements.txt` works in CI and
+# tooling that expects one. What it *does* need lives outside pip:
+#
+#   python3 >= 3.7
+#   a JDK (not just a JRE) that provides `jcmd` or `jstack`
+#   `top` from procps / procps-ng   (Linux, only for --method top)
+#
+# Optional, for the test suite only:  jsonschema  (schema checks are skipped without it)
+#
+# See README.md for brew / apt / dnf / yum / nix install commands.

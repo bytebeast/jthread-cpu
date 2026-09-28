@@ -1,0 +1,76 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "jthread-cpu"
+version = "1.5.0"
+description = "Find the Java threads eating your CPU: joins jstack thread dumps with per-thread CPU from top, /proc or jcmd."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "bytebeast" }]
+requires-python = ">=3.7"
+dependencies = [] # standard library only
+keywords = [
+  "java",
+  "jvm",
+  "jstack",
+  "jcmd",
+  "thread-dump",
+  "cpu",
+  "top",
+  "profiling",
+  "sre",
+  "troubleshooting",
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Intended Audience :: System Administrators",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: System :: Monitoring",
+  "Topic :: Software Development :: Debuggers",
+  "Topic :: Utilities",
+]
+
+[project.urls]
+Homepage = "https://github.com/bytebeast/jthread-cpu"
+Issues = "https://github.com/bytebeast/jthread-cpu/issues"
+"JSON Schema" = "https://raw.githubusercontent.com/bytebeast/jthread-cpu/main/schema/jthread-cpu-v1.schema.json"
+
+[project.scripts]
+jthread-cpu = "jthread_cpu:main"
+
+# The tool is a single executable file called `jthread-cpu` (no .py suffix, so
+# the command is spelled the same whether you curl it, scp it or pip install it).
+# Python can only import modules whose names are identifiers, so the wheel ships
+# that same file as `jthread_cpu.py`; the underscore is internal to the wheel and
+# the installed command is still `jthread-cpu`.
+[tool.hatch.build.targets.wheel]
+bypass-selection = true
+
+[tool.hatch.build.targets.wheel.force-include]
+"jthread-cpu" = "jthread_cpu.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "jthread-cpu",
+  "README.md",
+  "LICENSE",
+  "requirements.txt",
+  "schema/",
+  "examples/",
+  "tests/",
+]

@@ -1,0 +1,290 @@
+1798:
+2026-09-27 19:29:26
+Full thread dump OpenJDK 64-Bit Server VM (25.504-b01 mixed mode):
+
+"Attach Listener" #15 daemon prio=9 os_prio=0 tid=0x00007f3e18001000 nid=0x72a waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+   Locked ownable synchronizers:
+	- None
+
+"idle-sleeper" #14 prio=5 os_prio=0 tid=0x00007f3e4420d000 nid=0x719 waiting on condition [0x00007f3e2b6fe000]
+   java.lang.Thread.State: TIMED_WAITING (sleeping)
+	at java.lang.Thread.sleep(Native Method)
+	at Hot.lambda$main$3(Hot.java:10)
+	at Hot$$Lambda$4/1324119927.run(Unknown Source)
+	at java.lang.Thread.run(Thread.java:750)
+
+   Locked ownable synchronizers:
+	- None
+
+"blocked-2" #13 prio=5 os_prio=0 tid=0x00007f3e4420a800 nid=0x718 waiting for monitor entry [0x00007f3e2b7fe000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+	at Hot.lambda$main$2(Hot.java:9)
+	- waiting to lock <0x00000000e0d6c150> (a java.lang.Object)
+	at Hot$$Lambda$3/2003749087.run(Unknown Source)
+	at java.lang.Thread.run(Thread.java:750)
+
+   Locked ownable synchronizers:
+	- None
+
+"blocked-1" #12 prio=5 os_prio=0 tid=0x00007f3e44209000 nid=0x717 waiting for monitor entry [0x00007f3e301b7000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+	at Hot.lambda$main$2(Hot.java:9)
+	- waiting to lock <0x00000000e0d6c150> (a java.lang.Object)
+	at Hot$$Lambda$3/2003749087.run(Unknown Source)
+	at java.lang.Thread.run(Thread.java:750)
+
+   Locked ownable synchronizers:
+	- None
+
+"blocked-0" #11 prio=5 os_prio=0 tid=0x00007f3e44207000 nid=0x716 waiting for monitor entry [0x00007f3e302b7000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+	at Hot.lambda$main$2(Hot.java:9)
+	- waiting to lock <0x00000000e0d6c150> (a java.lang.Object)
+	at Hot$$Lambda$3/2003749087.run(Unknown Source)
+	at java.lang.Thread.run(Thread.java:750)
+
+   Locked ownable synchronizers:
+	- None
+
+"lock-holder-1" #10 prio=5 os_prio=0 tid=0x00007f3e441f5000 nid=0x715 runnable [0x00007f3e30525000]
+   java.lang.Thread.State: RUNNABLE
+	at Hot.lambda$main$1(Hot.java:7)
+	- locked <0x00000000e0d6c150> (a java.lang.Object)
+	at Hot$$Lambda$2/295530567.run(Unknown Source)
+	at java.lang.Thread.run(Thread.java:750)
+
+   Locked ownable synchronizers:
+	- None
+
+"order-worker-1" #9 prio=5 os_prio=0 tid=0x00007f3e441f3800 nid=0x714 runnable [0x00007f3e30624000]
+   java.lang.Thread.State: RUNNABLE
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.matchInit(Pattern.java:4815)
+	at java.util.regex.Pattern$Prolog.match(Pattern.java:4755)
+	at java.util.regex.Pattern$Start.match(Pattern.java:3475)
+	at java.util.regex.Matcher.search(Matcher.java:1248)
+	at java.util.regex.Matcher.find(Matcher.java:637)
+	at Hot.lambda$main$0(Hot.java:6)
+	at Hot$$Lambda$1/250421012.run(Unknown Source)
+	at java.lang.Thread.run(Thread.java:750)
+
+   Locked ownable synchronizers:
+	- None
+
+"order-worker-0" #8 prio=5 os_prio=0 tid=0x00007f3e441f1800 nid=0x713 runnable [0x00007f3e30724000]
+   java.lang.Thread.State: RUNNABLE
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.match(Pattern.java:4799)
+	at java.util.regex.Pattern$GroupTail.match(Pattern.java:4731)
+	at java.util.regex.Pattern$Curly.match0(Pattern.java:4286)
+	at java.util.regex.Pattern$Curly.match(Pattern.java:4248)
+	at java.util.regex.Pattern$GroupHead.match(Pattern.java:4672)
+	at java.util.regex.Pattern$Loop.matchInit(Pattern.java:4815)
+	at java.util.regex.Pattern$Prolog.match(Pattern.java:4755)
+	at java.util.regex.Pattern$Start.match(Pattern.java:3475)
+	at java.util.regex.Matcher.search(Matcher.java:1248)
+	at java.util.regex.Matcher.find(Matcher.java:637)
+	at Hot.lambda$main$0(Hot.java:6)
+	at Hot$$Lambda$1/250421012.run(Unknown Source)
+	at java.lang.Thread.run(Thread.java:750)
+
+   Locked ownable synchronizers:
+	- None
+
+"Service Thread" #7 daemon prio=9 os_prio=0 tid=0x00007f3e440bc000 nid=0x711 runnable [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+   Locked ownable synchronizers:
+	- None
+
+"C1 CompilerThread1" #6 daemon prio=9 os_prio=0 tid=0x00007f3e440b9800 nid=0x710 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+   Locked ownable synchronizers:
+	- None
+
+"C2 CompilerThread0" #5 daemon prio=9 os_prio=0 tid=0x00007f3e440b6800 nid=0x70f waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+   Locked ownable synchronizers:
+	- None
+
+"Signal Dispatcher" #4 daemon prio=9 os_prio=0 tid=0x00007f3e440b3800 nid=0x70e runnable [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+   Locked ownable synchronizers:
+	- None
+
+"Finalizer" #3 daemon prio=8 os_prio=0 tid=0x00007f3e44083800 nid=0x70d in Object.wait() [0x00007f3e30d75000]
+   java.lang.Thread.State: WAITING (on object monitor)
+	at java.lang.Object.wait(Native Method)
+	- waiting on <0x00000000e0d08f00> (a java.lang.ref.ReferenceQueue$Lock)
+	at java.lang.ref.ReferenceQueue.remove(ReferenceQueue.java:144)
+	- locked <0x00000000e0d08f00> (a java.lang.ref.ReferenceQueue$Lock)
+	at java.lang.ref.ReferenceQueue.remove(ReferenceQueue.java:165)
+	at java.lang.ref.Finalizer$FinalizerThread.run(Finalizer.java:188)
+
+   Locked ownable synchronizers:
+	- None
+
+"Reference Handler" #2 daemon prio=10 os_prio=0 tid=0x00007f3e4407f000 nid=0x70c in Object.wait() [0x00007f3e30e75000]
+   java.lang.Thread.State: WAITING (on object monitor)
+	at java.lang.Object.wait(Native Method)
+	- waiting on <0x00000000e0d06b98> (a java.lang.ref.Reference$Lock)
+	at java.lang.Object.wait(Object.java:502)
+	at java.lang.ref.Reference.tryHandlePending(Reference.java:191)
+	- locked <0x00000000e0d06b98> (a java.lang.ref.Reference$Lock)
+	at java.lang.ref.Reference$ReferenceHandler.run(Reference.java:153)
+
+   Locked ownable synchronizers:
+	- None
+
+"main" #1 prio=5 os_prio=0 tid=0x00007f3e4400a800 nid=0x708 in Object.wait() [0x00007f3e499fe000]
+   java.lang.Thread.State: WAITING (on object monitor)
+	at java.lang.Object.wait(Native Method)
+	- waiting on <0x00000000e0d05cd0> (a java.lang.Thread)
+	at java.lang.Thread.join(Thread.java:1257)
+	- locked <0x00000000e0d05cd0> (a java.lang.Thread)
+	at java.lang.Thread.join(Thread.java:1331)
+	at Hot.main(Hot.java:11)
+
+   Locked ownable synchronizers:
+	- None
+
+"VM Thread" os_prio=0 tid=0x00007f3e44075800 nid=0x70b runnable 
+
+"GC task thread#0 (ParallelGC)" os_prio=0 tid=0x00007f3e44021000 nid=0x709 runnable 
+
+"GC task thread#1 (ParallelGC)" os_prio=0 tid=0x00007f3e44022800 nid=0x70a runnable 
+
+"VM Periodic Task Thread" os_prio=0 tid=0x00007f3e440be800 nid=0x712 waiting on condition 
+
+JNI global references: 312
+

@@ -1,0 +1,203 @@
+1937:
+2026-09-27 19:29:38
+Full thread dump OpenJDK 64-Bit Server VM (11.0.32.1+1-post-1ubuntu1-24.04-Ubuntu mixed mode, sharing):
+
+Threads class SMR info:
+_java_thread_list=0x00007fecb4000c40, length=17, elements={
+0x00007fecfc016800, 0x00007fecfc0e1800, 0x00007fecfc0e3800, 0x00007fecfc0e8800,
+0x00007fecfc0ea800, 0x00007fecfc0ec800, 0x00007fecfc0ef000, 0x00007fecfc0f1000,
+0x00007fecfc124000, 0x00007fecfc12f000, 0x00007fecfc130800, 0x00007fecfc132800,
+0x00007fecfc134800, 0x00007fecfc136800, 0x00007fecfc138800, 0x00007fecfc13a800,
+0x00007fecb4001800
+}
+
+"main" #1 prio=5 os_prio=0 cpu=39.95ms elapsed=11.44s tid=0x00007fecfc016800 nid=0x793 in Object.wait()  [0x00007fed03bfe000]
+   java.lang.Thread.State: WAITING (on object monitor)
+	at java.lang.Object.wait(java.base@11.0.32.1/Native Method)
+	- waiting on <0x00000000a2618938> (a java.lang.Thread)
+	at java.lang.Thread.join(java.base@11.0.32.1/Thread.java:1300)
+	- waiting to re-lock in wait() <0x00000000a2618938> (a java.lang.Thread)
+	at java.lang.Thread.join(java.base@11.0.32.1/Thread.java:1375)
+	at Hot.main(Hot.java:11)
+
+   Locked ownable synchronizers:
+	- None
+
+"Reference Handler" #2 daemon prio=10 os_prio=0 cpu=0.32ms elapsed=11.42s tid=0x00007fecfc0e1800 nid=0x79a waiting on condition  [0x00007fed0067c000]
+   java.lang.Thread.State: RUNNABLE
+	at java.lang.ref.Reference.waitForReferencePendingList(java.base@11.0.32.1/Native Method)
+	at java.lang.ref.Reference.processPendingReferences(java.base@11.0.32.1/Reference.java:241)
+	at java.lang.ref.Reference$ReferenceHandler.run(java.base@11.0.32.1/Reference.java:213)
+
+   Locked ownable synchronizers:
+	- None
+
+"Finalizer" #3 daemon prio=8 os_prio=0 cpu=0.14ms elapsed=11.42s tid=0x00007fecfc0e3800 nid=0x79b in Object.wait()  [0x00007fed0057c000]
+   java.lang.Thread.State: WAITING (on object monitor)
+	at java.lang.Object.wait(java.base@11.0.32.1/Native Method)
+	- waiting on <0x00000000a261e138> (a java.lang.ref.ReferenceQueue$Lock)
+	at java.lang.ref.ReferenceQueue.remove(java.base@11.0.32.1/ReferenceQueue.java:155)
+	- waiting to re-lock in wait() <0x00000000a261e138> (a java.lang.ref.ReferenceQueue$Lock)
+	at java.lang.ref.ReferenceQueue.remove(java.base@11.0.32.1/ReferenceQueue.java:176)
+	at java.lang.ref.Finalizer$FinalizerThread.run(java.base@11.0.32.1/Finalizer.java:170)
+
+   Locked ownable synchronizers:
+	- None
+
+"Signal Dispatcher" #4 daemon prio=9 os_prio=0 cpu=0.35ms elapsed=11.42s tid=0x00007fecfc0e8800 nid=0x79c runnable  [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+   Locked ownable synchronizers:
+	- None
+
+"Service Thread" #5 daemon prio=9 os_prio=0 cpu=0.06ms elapsed=11.42s tid=0x00007fecfc0ea800 nid=0x79d runnable  [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+   Locked ownable synchronizers:
+	- None
+
+"C2 CompilerThread0" #6 daemon prio=9 os_prio=0 cpu=245.63ms elapsed=11.42s tid=0x00007fecfc0ec800 nid=0x79e waiting on condition  [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+   No compile task
+
+   Locked ownable synchronizers:
+	- None
+
+"C1 CompilerThread0" #7 daemon prio=9 os_prio=0 cpu=23.26ms elapsed=11.42s tid=0x00007fecfc0ef000 nid=0x79f waiting on condition  [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+   No compile task
+
+   Locked ownable synchronizers:
+	- None
+
+"Sweeper thread" #8 daemon prio=9 os_prio=0 cpu=0.03ms elapsed=11.42s tid=0x00007fecfc0f1000 nid=0x7a0 runnable  [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+   Locked ownable synchronizers:
+	- None
+
+"Common-Cleaner" #9 daemon prio=8 os_prio=0 cpu=0.32ms elapsed=11.40s tid=0x00007fecfc124000 nid=0x7a2 in Object.wait()  [0x00007fece44fd000]
+   java.lang.Thread.State: TIMED_WAITING (on object monitor)
+	at java.lang.Object.wait(java.base@11.0.32.1/Native Method)
+	- waiting on <0x00000000a26193a8> (a java.lang.ref.ReferenceQueue$Lock)
+	at java.lang.ref.ReferenceQueue.remove(java.base@11.0.32.1/ReferenceQueue.java:155)
+	- waiting to re-lock in wait() <0x00000000a26193a8> (a java.lang.ref.ReferenceQueue$Lock)
+	at jdk.internal.ref.CleanerImpl.run(java.base@11.0.32.1/CleanerImpl.java:148)
+	at java.lang.Thread.run(java.base@11.0.32.1/Thread.java:829)
+	at jdk.internal.misc.InnocuousThread.run(java.base@11.0.32.1/InnocuousThread.java:161)
+
+   Locked ownable synchronizers:
+	- None
+
+"order-worker-0" #10 prio=5 os_prio=0 cpu=6571.31ms elapsed=11.39s tid=0x00007fecfc12f000 nid=0x7a3 runnable  [0x00007fece43fc000]
+   java.lang.Thread.State: RUNNABLE
+	at java.util.regex.Pattern$BmpCharPropertyGreedy.match(java.base@11.0.32.1/Pattern.java:4349)
+	at java.util.regex.Pattern$GroupHead.match(java.base@11.0.32.1/Pattern.java:4807)
+	at java.util.regex.Pattern$Loop.match(java.base@11.0.32.1/Pattern.java:4944)
+	at java.util.regex.Pattern$GroupTail.match(java.base@11.0.32.1/Pattern.java:4866)
+	at java.util.regex.Pattern$BmpCharPropertyGreedy.match(java.base@11.0.32.1/Pattern.java:4347)
+	at java.util.regex.Pattern$GroupHead.match(java.base@11.0.32.1/Pattern.java:4807)
+	at java.util.regex.Pattern$Loop.matchInit(java.base@11.0.32.1/Pattern.java:4966)
+	at java.util.regex.Pattern$Prolog.match(java.base@11.0.32.1/Pattern.java:4890)
+	at java.util.regex.Pattern$Start.match(java.base@11.0.32.1/Pattern.java:3622)
+	at java.util.regex.Matcher.search(java.base@11.0.32.1/Matcher.java:1729)
+	at java.util.regex.Matcher.find(java.base@11.0.32.1/Matcher.java:746)
+	at Hot.lambda$main$0(Hot.java:6)
+	at Hot$$Lambda$1/0x0000000840060840.run(Unknown Source)
+	at java.lang.Thread.run(java.base@11.0.32.1/Thread.java:829)
+
+   Locked ownable synchronizers:
+	- None
+
+"order-worker-1" #11 prio=5 os_prio=0 cpu=6535.20ms elapsed=11.39s tid=0x00007fecfc130800 nid=0x7a4 runnable  [0x00007fece42fc000]
+   java.lang.Thread.State: RUNNABLE
+	at java.util.regex.IntHashSet.contains(java.base@11.0.32.1/IntHashSet.java:51)
+	at java.util.regex.Pattern$Loop.match(java.base@11.0.32.1/Pattern.java:4940)
+	at java.util.regex.Pattern$GroupTail.match(java.base@11.0.32.1/Pattern.java:4866)
+	at java.util.regex.Pattern$BmpCharPropertyGreedy.match(java.base@11.0.32.1/Pattern.java:4347)
+	at java.util.regex.Pattern$GroupHead.match(java.base@11.0.32.1/Pattern.java:4807)
+	at java.util.regex.Pattern$Loop.matchInit(java.base@11.0.32.1/Pattern.java:4966)
+	at java.util.regex.Pattern$Prolog.match(java.base@11.0.32.1/Pattern.java:4890)
+	at java.util.regex.Pattern$Start.match(java.base@11.0.32.1/Pattern.java:3622)
+	at java.util.regex.Matcher.search(java.base@11.0.32.1/Matcher.java:1729)
+	at java.util.regex.Matcher.find(java.base@11.0.32.1/Matcher.java:746)
+	at Hot.lambda$main$0(Hot.java:6)
+	at Hot$$Lambda$1/0x0000000840060840.run(Unknown Source)
+	at java.lang.Thread.run(java.base@11.0.32.1/Thread.java:829)
+
+   Locked ownable synchronizers:
+	- None
+
+"lock-holder-1" #12 prio=5 os_prio=0 cpu=6526.23ms elapsed=11.39s tid=0x00007fecfc132800 nid=0x7a5 runnable  [0x00007fece41fc000]
+   java.lang.Thread.State: RUNNABLE
+	at Hot.lambda$main$1(Hot.java:7)
+	- locked <0x00000000a261de38> (a java.lang.Object)
+	at Hot$$Lambda$2/0x0000000840061040.run(Unknown Source)
+	at java.lang.Thread.run(java.base@11.0.32.1/Thread.java:829)
+
+   Locked ownable synchronizers:
+	- None
+
+"blocked-0" #13 prio=5 os_prio=0 cpu=0.46ms elapsed=11.18s tid=0x00007fecfc134800 nid=0x7a7 waiting for monitor entry  [0x00007fecdd02d000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+	at Hot.lambda$main$2(Hot.java:9)
+	- waiting to lock <0x00000000a261de38> (a java.lang.Object)
+	at Hot$$Lambda$5/0x0000000840061c40.run(Unknown Source)
+	at java.lang.Thread.run(java.base@11.0.32.1/Thread.java:829)
+
+   Locked ownable synchronizers:
+	- None
+
+"blocked-1" #14 prio=5 os_prio=0 cpu=0.09ms elapsed=11.17s tid=0x00007fecfc136800 nid=0x7a8 waiting for monitor entry  [0x00007fecdcf2d000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+	at Hot.lambda$main$2(Hot.java:9)
+	- waiting to lock <0x00000000a261de38> (a java.lang.Object)
+	at Hot$$Lambda$5/0x0000000840061c40.run(Unknown Source)
+	at java.lang.Thread.run(java.base@11.0.32.1/Thread.java:829)
+
+   Locked ownable synchronizers:
+	- None
+
+"blocked-2" #15 prio=5 os_prio=0 cpu=0.09ms elapsed=11.17s tid=0x00007fecfc138800 nid=0x7a9 waiting for monitor entry  [0x00007fecdce2d000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+	at Hot.lambda$main$2(Hot.java:9)
+	- waiting to lock <0x00000000a261de38> (a java.lang.Object)
+	at Hot$$Lambda$5/0x0000000840061c40.run(Unknown Source)
+	at java.lang.Thread.run(java.base@11.0.32.1/Thread.java:829)
+
+   Locked ownable synchronizers:
+	- None
+
+"idle-sleeper" #16 prio=5 os_prio=0 cpu=0.43ms elapsed=11.17s tid=0x00007fecfc13a800 nid=0x7aa waiting on condition  [0x00007fecdcd2d000]
+   java.lang.Thread.State: TIMED_WAITING (sleeping)
+	at java.lang.Thread.sleep(java.base@11.0.32.1/Native Method)
+	at Hot.lambda$main$3(Hot.java:10)
+	at Hot$$Lambda$6/0x0000000840062040.run(Unknown Source)
+	at java.lang.Thread.run(java.base@11.0.32.1/Thread.java:829)
+
+   Locked ownable synchronizers:
+	- None
+
+"Attach Listener" #17 daemon prio=9 os_prio=0 cpu=1.18ms elapsed=6.60s tid=0x00007fecb4001800 nid=0x7c0 waiting on condition  [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+   Locked ownable synchronizers:
+	- None
+
+"VM Thread" os_prio=0 cpu=27.80ms elapsed=11.43s tid=0x00007fecfc0de800 nid=0x799 runnable  
+
+"GC Thread#0" os_prio=0 cpu=46.06ms elapsed=11.43s tid=0x00007fecfc02f800 nid=0x794 runnable  
+
+"GC Thread#1" os_prio=0 cpu=37.51ms elapsed=11.20s tid=0x00007fecc8001000 nid=0x7a6 runnable  
+
+"G1 Main Marker" os_prio=0 cpu=0.27ms elapsed=11.43s tid=0x00007fecfc055800 nid=0x795 runnable  
+
+"G1 Conc#0" os_prio=0 cpu=0.04ms elapsed=11.43s tid=0x00007fecfc057800 nid=0x796 runnable  
+
+"G1 Refine#0" os_prio=0 cpu=0.20ms elapsed=11.43s tid=0x00007fecfc0ad800 nid=0x797 runnable  
+
+"G1 Young RemSet Sampling" os_prio=0 cpu=1.50ms elapsed=11.43s tid=0x00007fecfc0af800 nid=0x798 runnable  
+"VM Periodic Task Thread" os_prio=0 cpu=7.62ms elapsed=11.40s tid=0x00007fecfc121800 nid=0x7a1 waiting on condition  
+
+JNI global refs: 4, weak refs: 0
+

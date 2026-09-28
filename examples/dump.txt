@@ -1,0 +1,170 @@
+48213:
+2026-09-24 09:41:07
+Full thread dump OpenJDK 64-Bit Server VM (17.0.12+7-LTS mixed mode, sharing):
+
+Threads class SMR info:
+_java_thread_list=0x00007f3a3c0019e0, length=13, elements={
+0x00007f3a48000001, 0x00007f3a48000004
+}
+
+"main" #1 prio=5 os_prio=0 cpu=5210.11ms elapsed=86412.36s tid=0x00007f3a48000001 nid=0xbc56 in Object.wait()  [0x00007f3a2c1fe000]
+   java.lang.Thread.State: WAITING (on object monitor)
+	at java.lang.Object.wait(java.base@17.0.12/Native Method)
+	- waiting on <0x00000006c0012a40> (a org.eclipse.jetty.server.Server)
+	at java.lang.Object.wait(java.base@17.0.12/Object.java:338)
+	at org.eclipse.jetty.util.thread.QueuedThreadPool.join(QueuedThreadPool.java:876)
+	- locked <0x00000006c0012a40> (a org.eclipse.jetty.server.Server)
+	at com.acme.shop.Main.main(Main.java:41)
+
+   Locked ownable synchronizers:
+	- None
+
+"Signal Dispatcher" #4 daemon prio=5 os_prio=0 cpu=0.41ms elapsed=86412.33s tid=0x00007f3a48000004 nid=0xbc62 waiting on condition  [0x00007f3a2c1fe000]
+   java.lang.Thread.State: RUNNABLE
+
+   Locked ownable synchronizers:
+	- None
+
+"order-worker-1" #31 prio=5 os_prio=0 cpu=98211.20ms elapsed=86412.06s tid=0x00007f3a4800001f nid=0xbca0 waiting for monitor entry  [0x00007f3a2c1fe000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+	at com.acme.shop.inventory.StockLedger.reserve(StockLedger.java:79)
+	- waiting to lock <0x00000006c1a2b3c8> (a com.acme.shop.inventory.StockLedger)
+	at com.acme.shop.order.OrderService.reserveStock(OrderService.java:164)
+	at com.acme.shop.order.OrderService.checkout(OrderService.java:127)
+	at com.acme.shop.order.OrderWorker.run(OrderWorker.java:57)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@17.0.12/ThreadPoolExecutor.java:1136)
+	at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)
+
+   Locked ownable synchronizers:
+	- None
+
+"order-worker-2" #32 prio=5 os_prio=0 cpu=97011.90ms elapsed=86412.05s tid=0x00007f3a48000020 nid=0xbca1 waiting for monitor entry  [0x00007f3a2c1fe000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+	at com.acme.shop.inventory.StockLedger.reserve(StockLedger.java:79)
+	- waiting to lock <0x00000006c1a2b3c8> (a com.acme.shop.inventory.StockLedger)
+	at com.acme.shop.order.OrderService.reserveStock(OrderService.java:164)
+	at com.acme.shop.order.OrderService.checkout(OrderService.java:127)
+	at com.acme.shop.order.OrderWorker.run(OrderWorker.java:57)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@17.0.12/ThreadPoolExecutor.java:1136)
+	at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)
+
+   Locked ownable synchronizers:
+	- None
+
+"order-worker-3" #33 prio=5 os_prio=0 cpu=2811904.50ms elapsed=86412.04s tid=0x00007f3a48000021 nid=0xbca2 runnable  [0x00007f3a2c1fe000]
+   java.lang.Thread.State: RUNNABLE
+	at java.util.regex.Pattern$Curly.match0(java.base@17.0.12/Pattern.java:4508)
+	at java.util.regex.Pattern$Curly.match(java.base@17.0.12/Pattern.java:4452)
+	at java.util.regex.Pattern$GroupHead.match(java.base@17.0.12/Pattern.java:4917)
+	at java.util.regex.Matcher.find(java.base@17.0.12/Matcher.java:774)
+	at com.acme.shop.pricing.CouponValidator.isValid(CouponValidator.java:88)
+	at com.acme.shop.pricing.PriceEngine.applyCoupons(PriceEngine.java:212)
+	at com.acme.shop.order.OrderService.checkout(OrderService.java:131)
+	at com.acme.shop.order.OrderWorker.run(OrderWorker.java:57)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@17.0.12/ThreadPoolExecutor.java:1136)
+	at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)
+
+   Locked ownable synchronizers:
+	- None
+
+"order-worker-4" #34 prio=5 os_prio=0 cpu=101876.30ms elapsed=86412.03s tid=0x00007f3a48000022 nid=0xbca3 runnable  [0x00007f3a2c1fe000]
+   java.lang.Thread.State: RUNNABLE
+	at com.acme.shop.inventory.StockLedger.reserve(StockLedger.java:81)
+	- locked <0x00000006c1a2b3c8> (a com.acme.shop.inventory.StockLedger)
+	at com.acme.shop.order.OrderService.reserveStock(OrderService.java:164)
+	at com.acme.shop.order.OrderService.checkout(OrderService.java:127)
+	at com.acme.shop.order.OrderWorker.run(OrderWorker.java:57)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@17.0.12/ThreadPoolExecutor.java:1136)
+	at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)
+
+   Locked ownable synchronizers:
+	- None
+
+"order-worker-5" #35 prio=5 os_prio=0 cpu=95022.00ms elapsed=86412.02s tid=0x00007f3a48000023 nid=0xbca4 waiting on condition  [0x00007f3a2c1fe000]
+   java.lang.Thread.State: TIMED_WAITING (parking)
+	at jdk.internal.misc.Unsafe.park(java.base@17.0.12/Native Method)
+	- parking to wait for  <0x00000006c1b00010> (a java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject)
+	at java.util.concurrent.locks.LockSupport.parkNanos(java.base@17.0.12/LockSupport.java:252)
+	at java.util.concurrent.LinkedBlockingQueue.poll(java.base@17.0.12/LinkedBlockingQueue.java:460)
+	at java.util.concurrent.ThreadPoolExecutor.getTask(java.base@17.0.12/ThreadPoolExecutor.java:1061)
+	at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)
+
+   Locked ownable synchronizers:
+	- None
+
+"order-worker-6" #36 prio=5 os_prio=0 cpu=94870.40ms elapsed=86412.01s tid=0x00007f3a48000024 nid=0xbca5 waiting on condition  [0x00007f3a2c1fe000]
+   java.lang.Thread.State: TIMED_WAITING (parking)
+	at jdk.internal.misc.Unsafe.park(java.base@17.0.12/Native Method)
+	- parking to wait for  <0x00000006c1b00010> (a java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject)
+	at java.util.concurrent.locks.LockSupport.parkNanos(java.base@17.0.12/LockSupport.java:252)
+	at java.util.concurrent.LinkedBlockingQueue.poll(java.base@17.0.12/LinkedBlockingQueue.java:460)
+	at java.util.concurrent.ThreadPoolExecutor.getTask(java.base@17.0.12/ThreadPoolExecutor.java:1061)
+	at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)
+
+   Locked ownable synchronizers:
+	- None
+
+"order-worker-7" #37 prio=5 os_prio=0 cpu=1203311.70ms elapsed=86412.00s tid=0x00007f3a48000025 nid=0xbca6 runnable  [0x00007f3a2c1fe000]
+   java.lang.Thread.State: RUNNABLE
+	at java.util.HashMap.resize(java.base@17.0.12/HashMap.java:702)
+	at java.util.HashMap.putVal(java.base@17.0.12/HashMap.java:661)
+	at java.util.HashMap.put(java.base@17.0.12/HashMap.java:610)
+	at com.acme.shop.catalog.PriceIndex.rebuild(PriceIndex.java:144)
+	at com.acme.shop.order.OrderService.checkout(OrderService.java:119)
+	at com.acme.shop.order.OrderWorker.run(OrderWorker.java:57)
+	at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)
+
+   Locked ownable synchronizers:
+	- None
+
+"qtp1297685781-42" #42 prio=5 os_prio=0 cpu=402554.10ms elapsed=86411.95s tid=0x00007f3a4800002a nid=0xbcad runnable  [0x00007f3a2c1fe000]
+   java.lang.Thread.State: RUNNABLE
+	at sun.nio.ch.EPoll.wait(java.base@17.0.12/Native Method)
+	at sun.nio.ch.EPollSelectorImpl.doSelect(java.base@17.0.12/EPollSelectorImpl.java:118)
+	at sun.nio.ch.SelectorImpl.lockAndDoSelect(java.base@17.0.12/SelectorImpl.java:129)
+	- locked <0x00000006c0f1a2d8> (a sun.nio.ch.Util$2)
+	- locked <0x00000006c0f1a1c0> (a sun.nio.ch.EPollSelectorImpl)
+	at sun.nio.ch.SelectorImpl.select(java.base@17.0.12/SelectorImpl.java:146)
+	at org.eclipse.jetty.io.ManagedSelector.nioSelect(ManagedSelector.java:180)
+	at org.eclipse.jetty.io.ManagedSelector$SelectorProducer.select(ManagedSelector.java:612)
+	at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)
+
+   Locked ownable synchronizers:
+	- None
+
+"kafka-producer-network-thread | shop-producer" #51 daemon prio=5 os_prio=0 cpu=77120.80ms elapsed=86411.86s tid=0x00007f3a48000033 nid=0xbc93 runnable  [0x00007f3a2c1fe000]
+   java.lang.Thread.State: RUNNABLE
+	at sun.nio.ch.EPoll.wait(java.base@17.0.12/Native Method)
+	at sun.nio.ch.EPollSelectorImpl.doSelect(java.base@17.0.12/EPollSelectorImpl.java:118)
+	at sun.nio.ch.SelectorImpl.lockAndDoSelect(java.base@17.0.12/SelectorImpl.java:129)
+	at org.apache.kafka.common.network.Selector.select(Selector.java:873)
+	at org.apache.kafka.clients.producer.internals.Sender.run(Sender.java:243)
+	at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)
+
+   Locked ownable synchronizers:
+	- None
+
+"HikariPool-1 housekeeper" #27 daemon prio=5 os_prio=0 cpu=1822.60ms elapsed=86412.10s tid=0x00007f3a4800001b nid=0xbc80 waiting on condition  [0x00007f3a2c1fe000]
+   java.lang.Thread.State: TIMED_WAITING (parking)
+	at jdk.internal.misc.Unsafe.park(java.base@17.0.12/Native Method)
+	- parking to wait for  <0x00000006c0d2e8a0> (a java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject)
+	at java.util.concurrent.locks.LockSupport.parkNanos(java.base@17.0.12/LockSupport.java:252)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$DelayedWorkQueue.take(java.base@17.0.12/ScheduledThreadPoolExecutor.java:1182)
+	at java.lang.Thread.run(java.base@17.0.12/Thread.java:840)
+
+   Locked ownable synchronizers:
+	- None
+
+"VM Thread" os_prio=0 cpu=40211.50ms elapsed=86412.57s tid=0x00007f3a4000bc5e nid=0xbc5e runnable
+
+"GC Thread#0" os_prio=0 cpu=210334.20ms elapsed=86412.57s tid=0x00007f3a4000bc58 nid=0xbc58 runnable
+
+"GC Thread#1" os_prio=0 cpu=208977.90ms elapsed=86412.57s tid=0x00007f3a4000bc6f nid=0xbc6f runnable
+
+"G1 Conc#0" os_prio=0 cpu=301877.00ms elapsed=86412.57s tid=0x00007f3a4000bc5b nid=0xbc5b runnable
+
+"C2 CompilerThread0" os_prio=0 cpu=512004.40ms elapsed=86412.57s tid=0x00007f3a4000bc64 nid=0xbc64 waiting on condition
+
+"VM Periodic Task Thread" os_prio=0 cpu=3012.80ms elapsed=86412.57s tid=0x00007f3a4000bc6a nid=0xbc6a waiting on condition
+
+JNI global refs: 24, weak refs: 0
