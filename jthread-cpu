@@ -297,7 +297,9 @@ def setup_encoding(force_ascii=False):
     """Never let an unencodable glyph abort the report half-written."""
     enc = getattr(sys.stdout, "encoding", None) or "ascii"
     try:
-        (G.BAR + G.EMPTY + G.ARROW + G.WAIT + G.ELLIPSIS + G.HINT + G.SPARK + G.TIMES).encode(enc)
+        (
+            G.BAR + G.EMPTY + G.ARROW + G.WAIT + G.ELLIPSIS + G.HINT + G.SPARK + G.TIMES
+        ).encode(enc)
         unicode_ok = True
     except (UnicodeEncodeError, LookupError):
         unicode_ok = False
@@ -560,8 +562,14 @@ def cpu_capacity(pid=None, override=None):
     source (which one set the capacity).  `override` (--cpus) wins outright.
     """
     info = OrderedDict(
-        [("host", None), ("affinity", None), ("cgroup_quota", None),
-         ("capacity", None), ("source", "unknown"), ("cgroup_dir", None)]
+        [
+            ("host", None),
+            ("affinity", None),
+            ("cgroup_quota", None),
+            ("capacity", None),
+            ("source", "unknown"),
+            ("cgroup_dir", None),
+        ]
     )
     if override:
         info["capacity"] = float(override)
@@ -1291,7 +1299,10 @@ def contended_locks(rows):
                     ("owner", owner.name if owner else None),
                     ("owner_state", (owner.state or "JVM_INTERNAL") if owner else None),
                     ("owner_cpu_pct", by_nid_cpu.get(id(owner)) if owner else None),
-                    ("owner_frame", (owner.app_frame() or owner.top_frame()) if owner else None),
+                    (
+                        "owner_frame",
+                        (owner.app_frame() or owner.top_frame()) if owner else None,
+                    ),
                 ]
             )
         )
@@ -1304,8 +1315,12 @@ def analyse(rows, orphans, meta, ctx):
     total = sum(r["cpu"] or 0.0 for r in rows) + sum(v["cpu"] for v in orphans.values())
     cap = (ctx.get("capacity") or {}).get("capacity")
     for r in rows:
-        r["share"] = (r["cpu"] / total * 100.0) if (r["cpu"] is not None and total > 0) else None
-        r["of_cap"] = (r["cpu"] / cap) if (r["cpu"] is not None and cap) else None  # a percent
+        r["share"] = (
+            (r["cpu"] / total * 100.0) if (r["cpu"] is not None and total > 0) else None
+        )
+        r["of_cap"] = (
+            (r["cpu"] / cap) if (r["cpu"] is not None and cap) else None
+        )  # a percent
 
     groups = defaultdict(lambda: {"cpu": 0.0, "n": 0, "states": Counter()})
     for r in rows:
@@ -1319,8 +1334,16 @@ def analyse(rows, orphans, meta, ctx):
                 ("pattern", name),
                 ("count", g["n"]),
                 ("cpu_pct", round(g["cpu"], 2)),
-                ("share_of_jvm_pct", round(g["cpu"] / total * 100.0, 2) if total > 0 else None),
-                ("states", OrderedDict(sorted(g["states"].items(), key=lambda kv: (-kv[1], kv[0])))),
+                (
+                    "share_of_jvm_pct",
+                    round(g["cpu"] / total * 100.0, 2) if total > 0 else None,
+                ),
+                (
+                    "states",
+                    OrderedDict(
+                        sorted(g["states"].items(), key=lambda kv: (-kv[1], kv[0]))
+                    ),
+                ),
             ]
         )
         for name, g in groups.items()
@@ -1334,8 +1357,12 @@ def analyse(rows, orphans, meta, ctx):
         census[s] += 1
         cpu_by_state[s] += r["cpu"] or 0.0
     states = [
-        OrderedDict([("state", s), ("count", n), ("cpu_pct", round(cpu_by_state[s], 2))])
-        for s, n in sorted(census.items(), key=lambda kv: (-kv[1], -cpu_by_state[kv[0]], kv[0]))
+        OrderedDict(
+            [("state", s), ("count", n), ("cpu_pct", round(cpu_by_state[s], 2))]
+        )
+        for s, n in sorted(
+            census.items(), key=lambda kv: (-kv[1], -cpu_by_state[kv[0]], kv[0])
+        )
     ]
 
     proc_pct = ctx.get("process_cpu_pct")
@@ -1381,7 +1408,11 @@ SELECTOR_FRAMES = (
     "io.netty.channel.epoll.Native.epollWait",
     "io.netty.channel.kqueue.Native.keventWait",
 )
-MAP_LOOP_FRAMES = ("java.util.HashMap$TreeNode.", "java.util.TreeMap.", "java.util.WeakHashMap.")
+MAP_LOOP_FRAMES = (
+    "java.util.HashMap$TreeNode.",
+    "java.util.TreeMap.",
+    "java.util.WeakHashMap.",
+)
 
 # the thresholds, in % of one core unless noted
 HINT_HOT_THREAD = 80.0
@@ -1432,12 +1463,15 @@ def investigation_hints(rows, orphans, meta, ctx, an):
 
     # DEADLOCK -------------------------------------------------------------
     if meta.get("deadlocks"):
-        names = sorted(set(re.findall(r'^"(.+)":\s*$', "\n".join(meta["deadlocks"]), re.M)))
+        names = sorted(
+            set(re.findall(r'^"(.+)":\s*$', "\n".join(meta["deadlocks"]), re.M))
+        )
         out.append(
             _hint(
                 "DEADLOCK",
                 "critical",
-                "Java-level deadlock between %s" % (", ".join(names) or "several threads"),
+                "Java-level deadlock between %s"
+                % (", ".join(names) or "several threads"),
                 "These threads wait on each other and will never progress. Fix the lock "
                 "ordering in the frames under DEADLOCK DETECTED; recovering needs a restart.",
                 commands=["jcmd %s Thread.print -l > deadlock.txt" % pid],
@@ -1448,14 +1482,19 @@ def investigation_hints(rows, orphans, meta, ctx, an):
     # LOCK_CONTENTION ------------------------------------------------------
     for lk in [l for l in an["locks"] if len(l["waiters"]) >= 2][:3]:
         what = lk["class"] or lk["lock"]
-        ev = ["lock <%s> (%s)" % (lk["lock"], lk["class"] or "?"), "waiters: " + ", ".join(lk["waiters"])]
+        ev = [
+            "lock <%s> (%s)" % (lk["lock"], lk["class"] or "?"),
+            "waiters: " + ", ".join(lk["waiters"]),
+        ]
         if lk["owner"]:
             ev.append(
                 "owner: %s, %s, %s CPU, at %s"
                 % (
                     lk["owner"],
                     (lk["owner_state"] or "?").lower(),
-                    "?" if lk["owner_cpu_pct"] is None else "%.1f%%" % lk["owner_cpu_pct"],
+                    "?"
+                    if lk["owner_cpu_pct"] is None
+                    else "%.1f%%" % lk["owner_cpu_pct"],
                     lk["owner_frame"] or "?",
                 )
             )
@@ -1482,13 +1521,21 @@ def investigation_hints(rows, orphans, meta, ctx, an):
                 "%d threads blocked on %s" % (len(lk["waiters"]), what),
                 detail,
                 evidence=ev,
-                commands=["jcmd %s Thread.print -l | grep -e '^\"' -e '%s'   # owner = header above '- locked'" % (pid, lk["lock"])],
+                commands=[
+                    "jcmd %s Thread.print -l | grep -e '^\"' -e '%s'   # owner = header above '- locked'"
+                    % (pid, lk["lock"])
+                ],
                 threads=lk["waiters"] + ([lk["owner"]] if lk["owner"] else []),
             )
         )
 
     # REGEX_BACKTRACKING ---------------------------------------------------
-    rx = [r for r in hot if r["cpu"] >= HINT_REGEX * k and r["thread"].top_frame().startswith("java.util.regex.")]
+    rx = [
+        r
+        for r in hot
+        if r["cpu"] >= HINT_REGEX * k
+        and r["thread"].top_frame().startswith("java.util.regex.")
+    ]
     if rx:
         first = rx[0]
         covered.update(id(r["thread"]) for r in rx)
@@ -1497,12 +1544,18 @@ def investigation_hints(rows, orphans, meta, ctx, an):
                 "REGEX_BACKTRACKING",
                 "warning",
                 "Regex backtracking in %s (%.1f%% CPU)%s"
-                % (first["thread"].name, first["cpu"], " and %d more" % (len(rx) - 1) if len(rx) > 1 else ""),
+                % (
+                    first["thread"].name,
+                    first["cpu"],
+                    " and %d more" % (len(rx) - 1) if len(rx) > 1 else "",
+                ),
                 "The hottest frame is inside java.util.regex, the classic sign of "
                 "catastrophic backtracking. Check the pattern applied at the frame below "
                 "for nested or overlapping quantifiers such as (a+)+ or (.*)*, bound the "
                 "input length, or use possessive quantifiers / atomic groups.",
-                evidence=["%s: %s" % (r["thread"].name, _where(r["thread"])) for r in rx[:5]],
+                evidence=[
+                    "%s: %s" % (r["thread"].name, _where(r["thread"])) for r in rx[:5]
+                ],
                 threads=[r["thread"].name for r in rx],
             )
         )
@@ -1524,7 +1577,9 @@ def investigation_hints(rows, orphans, meta, ctx, an):
                 "A HashMap/TreeMap modified by several threads without locking can corrupt "
                 "its internal structure and spin forever. Check whether the map used at the "
                 "frame below is shared; use ConcurrentHashMap or guard it.",
-                evidence=["%s: %s" % (r["thread"].name, _where(r["thread"])) for r in ml[:5]],
+                evidence=[
+                    "%s: %s" % (r["thread"].name, _where(r["thread"])) for r in ml[:5]
+                ],
                 threads=[r["thread"].name for r in ml],
             )
         )
@@ -1533,7 +1588,8 @@ def investigation_hints(rows, orphans, meta, ctx, an):
     sel = [
         r
         for r in hot
-        if r["cpu"] >= HINT_SELECTOR * k and r["thread"].top_frame().startswith(SELECTOR_FRAMES)
+        if r["cpu"] >= HINT_SELECTOR * k
+        and r["thread"].top_frame().startswith(SELECTOR_FRAMES)
     ]
     if sel:
         covered.update(id(r["thread"]) for r in sel)
@@ -1541,19 +1597,30 @@ def investigation_hints(rows, orphans, meta, ctx, an):
             _hint(
                 "SELECTOR_SPIN",
                 "warning",
-                "I/O selector thread %s uses %.1f%% CPU while waiting" % (sel[0]["thread"].name, sel[0]["cpu"]),
+                "I/O selector thread %s uses %.1f%% CPU while waiting"
+                % (sel[0]["thread"].name, sel[0]["cpu"]),
                 "A thread parked in epoll/kqueue should use almost no CPU. This much means "
                 "the selector wakes up constantly: a busy socket, a spurious-wakeup spin, or "
                 "a Netty/NIO selector rebuild loop. Check the library's logs for selector "
                 "warnings and look at connection churn.",
-                evidence=["%s: %.1f%% in %s" % (r["thread"].name, r["cpu"], r["thread"].top_frame()) for r in sel[:5]],
+                evidence=[
+                    "%s: %.1f%% in %s"
+                    % (r["thread"].name, r["cpu"], r["thread"].top_frame())
+                    for r in sel[:5]
+                ],
                 commands=["ss -tanp | grep 'pid=%s,' | wc -l" % pid],
                 threads=[r["thread"].name for r in sel],
             )
         )
 
     # GC_CPU ---------------------------------------------------------------
-    gc = [r for r in rows if r["cpu"] and r["thread"].is_jvm_internal and GC_NAME_RE.match(r["thread"].name)]
+    gc = [
+        r
+        for r in rows
+        if r["cpu"]
+        and r["thread"].is_jvm_internal
+        and GC_NAME_RE.match(r["thread"].name)
+    ]
     gc_total = sum(r["cpu"] for r in gc)
     gc_share = gc_total / total * 100.0 if total > 0 else 0.0
     if gc_total >= HINT_GC or (gc_total >= HINT_GC / 2 and gc_share >= HINT_GC_SHARE):
@@ -1561,12 +1628,19 @@ def investigation_hints(rows, orphans, meta, ctx, an):
             _hint(
                 "GC_CPU",
                 "warning",
-                "Garbage collection uses %.1f%% CPU (%.0f%% of the JVM)" % (gc_total, gc_share),
+                "Garbage collection uses %.1f%% CPU (%.0f%% of the JVM)"
+                % (gc_total, gc_share),
                 "GC threads are a big share of the CPU. Either the heap is too small for the "
                 "live set (look for a rising old gen / back-to-back collections) or the "
                 "allocation rate is very high. Watch GC before tuning anything else.",
-                commands=["jstat -gcutil %s 1000 10" % pid, "jcmd %s GC.heap_info" % pid],
-                threads=[r["thread"].name for r in sorted(gc, key=lambda r: (-r["cpu"], r["thread"].name))],
+                commands=[
+                    "jstat -gcutil %s 1000 10" % pid,
+                    "jcmd %s GC.heap_info" % pid,
+                ],
+                threads=[
+                    r["thread"].name
+                    for r in sorted(gc, key=lambda r: (-r["cpu"], r["thread"].name))
+                ],
             )
         )
 
@@ -1581,8 +1655,14 @@ def investigation_hints(rows, orphans, meta, ctx, an):
                 "JIT compiler threads use %.1f%% CPU" % jit_total,
                 "Normal for a few minutes after start-up or a deploy. If it persists, look for "
                 "a deoptimisation loop or a full code cache.",
-                commands=["jcmd %s Compiler.queue" % pid, "jcmd %s Compiler.codecache" % pid],
-                threads=[r["thread"].name for r in sorted(jit, key=lambda r: (-r["cpu"], r["thread"].name))],
+                commands=[
+                    "jcmd %s Compiler.queue" % pid,
+                    "jcmd %s Compiler.codecache" % pid,
+                ],
+                threads=[
+                    r["thread"].name
+                    for r in sorted(jit, key=lambda r: (-r["cpu"], r["thread"].name))
+                ],
             )
         )
 
@@ -1600,8 +1680,12 @@ def investigation_hints(rows, orphans, meta, ctx, an):
             _hint(
                 "HOT_THREAD",
                 "warning",
-                "%s is CPU-bound (%.1f%% of a core%s)" % (
-                    t.name, r["cpu"], ", quota %s cores" % _fmt_cores(cap) if k < 1.0 else ""),
+                "%s is CPU-bound (%.1f%% of a core%s)"
+                % (
+                    t.name,
+                    r["cpu"],
+                    ", quota %s cores" % _fmt_cores(cap) if k < 1.0 else "",
+                ),
                 "Start at the frame below. A thread pinned near 100% is either a loop that "
                 "does not finish or genuinely heavy work: sample it a few more times, and "
                 "if the frame never moves it is a loop.",
@@ -1616,13 +1700,21 @@ def investigation_hints(rows, orphans, meta, ctx, an):
 
     # POOL_SATURATED -------------------------------------------------------
     for g in an["groups"]:
-        busy_states = sum(n for s, n in g["states"].items() if s in ("RUNNABLE", "BLOCKED"))
-        if g["count"] >= 3 and busy_states == g["count"] and g["cpu_pct"] >= HINT_POOL and "#" in g["pattern"]:
+        busy_states = sum(
+            n for s, n in g["states"].items() if s in ("RUNNABLE", "BLOCKED")
+        )
+        if (
+            g["count"] >= 3
+            and busy_states == g["count"]
+            and g["cpu_pct"] >= HINT_POOL
+            and "#" in g["pattern"]
+        ):
             out.append(
                 _hint(
                     "POOL_SATURATED",
                     "warning",
-                    "All %d %s threads are busy (%.1f%% CPU)" % (g["count"], g["pattern"], g["cpu_pct"]),
+                    "All %d %s threads are busy (%.1f%% CPU)"
+                    % (g["count"], g["pattern"], g["cpu_pct"]),
                     "No thread in this pool is idle, so new work queues up behind them. "
                     "Find out whether the work got slower (see the hottest frames) or "
                     "whether there is simply more of it; a bigger pool only helps in the "
@@ -1642,11 +1734,15 @@ def investigation_hints(rows, orphans, meta, ctx, an):
             _hint(
                 "NATIVE_THREAD",
                 "info",
-                "Thread %d (%s) uses %.1f%% CPU but is not in the thread dump" % (tid, v["comm"] or "?", v["cpu"]),
+                "Thread %d (%s) uses %.1f%% CPU but is not in the thread dump"
+                % (tid, v["comm"] or "?", v["cpu"]),
                 "Threads the dump does not list are JVM internals it omits, native threads "
                 "from JNI libraries or agents, or threads that started after the dump. A "
                 "native profiler can see inside them.",
-                evidence=["tid %d (%s): %.1f%%" % (t_, v_["comm"] or "?", v_["cpu"]) for t_, v_ in nat[:5]],
+                evidence=[
+                    "tid %d (%s): %.1f%%" % (t_, v_["comm"] or "?", v_["cpu"])
+                    for t_, v_ in nat[:5]
+                ],
                 commands=[
                     "cat /proc/%s/task/%d/comm" % (pid, tid),
                     "perf top -t %d" % tid,
@@ -1660,12 +1756,18 @@ def investigation_hints(rows, orphans, meta, ctx, an):
             _hint(
                 "UNATTRIBUTED_CPU",
                 "warning",
-                "%.1f%% CPU was used by threads that no longer exist" % an["unattributed"],
+                "%.1f%% CPU was used by threads that no longer exist"
+                % an["unattributed"],
                 "The process used more CPU than its live threads account for, so threads "
                 "are being created and destroyed inside the sample window. Look for code "
                 "that creates a Thread or an executor per request.",
-                evidence=["process %.1f%% vs live threads %.1f%%" % (an["process_pct"], total)],
-                commands=["jcmd %s PerfCounter.print | grep -E 'java.threads.(started|live)'" % pid],
+                evidence=[
+                    "process %.1f%% vs live threads %.1f%%" % (an["process_pct"], total)
+                ],
+                commands=[
+                    "jcmd %s PerfCounter.print | grep -E 'java.threads.(started|live)'"
+                    % pid
+                ],
             )
         )
 
@@ -1674,13 +1776,16 @@ def investigation_hints(rows, orphans, meta, ctx, an):
         cap = ctx["capacity"]
         cmds = []
         if cap.get("source") == "cgroup quota":
-            cmds.append("cat %s/cpu.stat   # nr_throttled, throttled_time/usec"
-                        % (cap.get("cgroup_dir") or "/sys/fs/cgroup"))
+            cmds.append(
+                "cat %s/cpu.stat   # nr_throttled, throttled_time/usec"
+                % (cap.get("cgroup_dir") or "/sys/fs/cgroup")
+            )
         out.append(
             _hint(
                 "CAPACITY_SATURATED",
                 "warning",
-                "The JVM uses %.0f%% of the %s cores it can get" % (an["of_capacity"] * 100, _fmt_cores(an["capacity"])),
+                "The JVM uses %.0f%% of the %s cores it can get"
+                % (an["of_capacity"] * 100, _fmt_cores(an["capacity"])),
                 "It is CPU-bound at its limit (%s), so latency grows with any extra load. "
                 "Cut the hottest work below or raise the limit."
                 % cap.get("source", "?"),
@@ -1711,7 +1816,10 @@ def investigation_hints(rows, orphans, meta, ctx, an):
                 "These are lifetime averages, not current CPU",
                 "Without --top-file the only CPU figure is each thread's total since it "
                 "started. Capture top next to the dump to see what is hot right now.",
-                commands=["top -H -b -n 2 -d 5 -p %s -w 512 > top.txt; jcmd %s Thread.print -l > dump.txt" % (pid, pid)],
+                commands=[
+                    "top -H -b -n 2 -d 5 -p %s -w 512 > top.txt; jcmd %s Thread.print -l > dump.txt"
+                    % (pid, pid)
+                ],
             )
         )
     win = ctx.get("window")
@@ -1731,7 +1839,8 @@ def investigation_hints(rows, orphans, meta, ctx, an):
             _hint(
                 "LOW_COVERAGE",
                 "info",
-                "Only %d of %d dump threads had a CPU sample" % (an["matched"], len(rows)),
+                "Only %d of %d dump threads had a CPU sample"
+                % (an["matched"], len(rows)),
                 "The dump and the CPU sample look like they come from different moments "
                 "(or different JVMs). Capture them together.",
             )
@@ -1783,19 +1892,28 @@ def summary_hints(summary, pid):
                 _hint(
                     "PERSISTENT_LOOP",
                     "warning",
-                    "%s sat on the same frame in all %d hot rounds" % (t["name"], t["rounds_hot"]),
+                    "%s sat on the same frame in all %d hot rounds"
+                    % (t["name"], t["rounds_hot"]),
                     "Hot in every round and the top frame never moved: this is very likely "
                     "a loop that does not terminate (or a single huge unit of work). The "
                     "frame below is where to look.",
-                    evidence=["%s (avg %.1f%%, max %.1f%%)" % (frame, t["avg_cpu_pct"], t["max_cpu_pct"])]
-                    + (["called from %s" % t["dominant_app_frame"]]
-                       if t["dominant_app_frame"] and t["dominant_app_frame"] != frame else []),
+                    evidence=[
+                        "%s (avg %.1f%%, max %.1f%%)"
+                        % (frame, t["avg_cpu_pct"], t["max_cpu_pct"])
+                    ]
+                    + (
+                        ["called from %s" % t["dominant_app_frame"]]
+                        if t["dominant_app_frame"] and t["dominant_app_frame"] != frame
+                        else []
+                    ),
                     threads=[t["name"]],
                 )
             )
     bursty = [
-        t for t in summary["threads"]
-        if t["classification"] in ("spike", "recurring") and t["max_cpu_pct"] >= HINT_HOT_THREAD
+        t
+        for t in summary["threads"]
+        if t["classification"] in ("spike", "recurring")
+        and t["max_cpu_pct"] >= HINT_HOT_THREAD
     ]
     if bursty:
         out.append(
@@ -1805,7 +1923,11 @@ def summary_hints(summary, pid):
                 "%d thread(s) spike to a full core only in some rounds" % len(bursty),
                 "Bursty load: the cause may not be on screen in any single snapshot. Take "
                 "shorter rounds with no pause, or run a continuous profiler.",
-                evidence=["%s: max %.1f%%, hot in %d/%d rounds" % (t["name"], t["max_cpu_pct"], t["rounds_hot"], n) for t in bursty[:5]],
+                evidence=[
+                    "%s: max %.1f%%, hot in %d/%d rounds"
+                    % (t["name"], t["max_cpu_pct"], t["rounds_hot"], n)
+                    for t in bursty[:5]
+                ],
                 commands=["%s -p %s -c 20 -d 1 --summary-only" % (PROG, pid)],
                 threads=[t["name"] for t in bursty],
             )
@@ -1841,9 +1963,25 @@ class Tracker:
             if r["cpu"] is None:
                 continue
             t = r["thread"]
-            self._record((t.nid, t.name), t.name, t.nid, r["cpu"], t.top_frame(), t.app_frame(), idx)
+            self._record(
+                (t.nid, t.name),
+                t.name,
+                t.nid,
+                r["cpu"],
+                t.top_frame(),
+                t.app_frame(),
+                idx,
+            )
         for tid, v in orphans.items():
-            self._record((tid, "native:" + v["comm"]), v["comm"] or "?", tid, v["cpu"], "", "", idx)
+            self._record(
+                (tid, "native:" + v["comm"]),
+                v["comm"] or "?",
+                tid,
+                v["cpu"],
+                "",
+                "",
+                idx,
+            )
         for e in self.threads.values():
             while len(e["series"]) < self.rounds:
                 e["series"].append(None)
@@ -1854,8 +1992,14 @@ class Tracker:
     def _record(self, key, name, nid, cpu, frame, app, idx):
         e = self.threads.get(key)
         if e is None:
-            e = {"name": name, "nid": nid, "series": [None] * idx, "frames": Counter(),
-                 "all_frames": Counter(), "apps": Counter()}
+            e = {
+                "name": name,
+                "nid": nid,
+                "series": [None] * idx,
+                "frames": Counter(),
+                "all_frames": Counter(),
+                "apps": Counter(),
+            }
             self.threads[key] = e
         e["series"].append(cpu)
         if frame:
@@ -1914,7 +2058,12 @@ class Tracker:
                 ("hot_threshold_pct", self.hot),
                 ("total_cpu_pct_series", list(self.totals)),
                 ("threads", threads),
-                ("hint_counts", OrderedDict(sorted(self.hint_counts.items(), key=lambda kv: (-kv[1], kv[0])))),
+                (
+                    "hint_counts",
+                    OrderedDict(
+                        sorted(self.hint_counts.items(), key=lambda kv: (-kv[1], kv[0]))
+                    ),
+                ),
             ]
         )
         s["hints"] = summary_hints(s, self.pid)
@@ -1993,19 +2142,30 @@ def shorten_frame(frame, width):
 
 
 def clip(text, width):
-    return text if len(text) <= width else text[: max(1, width - len(G.ELLIPSIS))] + G.ELLIPSIS
+    return (
+        text
+        if len(text) <= width
+        else text[: max(1, width - len(G.ELLIPSIS))] + G.ELLIPSIS
+    )
 
 
 def _fmt_cores(c):
     if c is None:
         return "?"
-    return ("%d" % c) if abs(c - round(c)) < 1e-9 else ("%.2f" % c).rstrip("0").rstrip(".")
+    return (
+        ("%d" % c) if abs(c - round(c)) < 1e-9 else ("%.2f" % c).rstrip("0").rstrip(".")
+    )
 
 
 def _wrap(text, width, indent):
     import textwrap
 
-    return textwrap.wrap(text, max(30, width - len(indent)), initial_indent=indent, subsequent_indent=indent)
+    return textwrap.wrap(
+        text,
+        max(30, width - len(indent)),
+        initial_indent=indent,
+        subsequent_indent=indent,
+    )
 
 
 def scaled(pct, ctx, args):
@@ -2019,7 +2179,11 @@ def scaled(pct, ctx, args):
 
 
 def section(title, color=None):
-    return "\n%s  %s%s\n" % (C.BOLD + (color if color is not None else C.LAVENDER), title, C.RESET)
+    return "\n%s  %s%s\n" % (
+        C.BOLD + (color if color is not None else C.LAVENDER),
+        title,
+        C.RESET,
+    )
 
 
 def render_banner(ctx, an, args, width, title="JVM thread CPU report"):
@@ -2030,7 +2194,11 @@ def render_banner(ctx, an, args, width, title="JVM thread CPU report"):
     if ctx.get("ppid") is not None:
         line1 += " %s(ppid %s)%s" % (C.DIM, ctx["ppid"], C.RESET)
     if ctx.get("cmd"):
-        line1 += "   %s%s%s" % (C.DIM, shorten_frame(ctx["cmd"], max(20, width - len(line1) - 6)), C.RESET)
+        line1 += "   %s%s%s" % (
+            C.DIM,
+            shorten_frame(ctx["cmd"], max(20, width - len(line1) - 6)),
+            C.RESET,
+        )
     out.append("  %s\n" % line1)
 
     win = ctx.get("window")
@@ -2039,7 +2207,17 @@ def render_banner(ctx, an, args, width, title="JVM thread CPU report"):
         win_txt += " %s(%s)%s" % (C.DIM, ctx["window_source"], C.RESET)
     out.append(
         "  %ssampled:%s %s   %smethod:%s %s   %swindow:%s %s\n"
-        % (C.DIM, C.RESET, ctx["when"], C.DIM, C.RESET, ctx["method"], C.DIM, C.RESET, win_txt)
+        % (
+            C.DIM,
+            C.RESET,
+            ctx["when"],
+            C.DIM,
+            C.RESET,
+            ctx["method"],
+            C.DIM,
+            C.RESET,
+            win_txt,
+        )
     )
 
     cap = ctx.get("capacity") or {}
@@ -2051,8 +2229,13 @@ def render_banner(ctx, an, args, width, title="JVM thread CPU report"):
             bits.append("affinity %s" % cap["affinity"])
         if cap.get("cgroup_quota") is not None:
             bits.append("cgroup quota %s" % _fmt_cores(cap["cgroup_quota"]))
-        detail = (" %s(%s; limited by %s)%s" % (C.DIM, ", ".join(bits), cap["source"], C.RESET)) if bits else (
-            " %s(%s)%s" % (C.DIM, cap["source"], C.RESET)
+        detail = (
+            (
+                " %s(%s; limited by %s)%s"
+                % (C.DIM, ", ".join(bits), cap["source"], C.RESET)
+            )
+            if bits
+            else (" %s(%s)%s" % (C.DIM, cap["source"], C.RESET))
         )
         cap_txt = "%s cores%s" % (_fmt_cores(cap["capacity"]), detail)
     else:
@@ -2061,7 +2244,12 @@ def render_banner(ctx, an, args, width, title="JVM thread CPU report"):
     extra = ""
     if proc:
         extra = "   %srss:%s %.0f MB   %suptime:%s %s" % (
-            C.DIM, C.RESET, proc["rss_kb"] / 1024.0, C.DIM, C.RESET, proc["elapsed"]
+            C.DIM,
+            C.RESET,
+            proc["rss_kb"] / 1024.0,
+            C.DIM,
+            C.RESET,
+            proc["elapsed"],
         )
     out.append("  %scapacity:%s %s%s\n" % (C.DIM, C.RESET, cap_txt, extra))
 
@@ -2072,7 +2260,14 @@ def render_banner(ctx, an, args, width, title="JVM thread CPU report"):
 
     total = an["total"]
     line = "  %stotal CPU:%s %s%.1f%%%s %s= %.2f cores%s" % (
-        C.DIM, C.RESET, load_color(an["of_capacity"]), total, C.RESET, C.DIM, an["cores"], C.RESET,
+        C.DIM,
+        C.RESET,
+        load_color(an["of_capacity"]),
+        total,
+        C.RESET,
+        C.DIM,
+        an["cores"],
+        C.RESET,
     )
     if an["of_capacity"] is not None:
         line += "   %s%s%s %s%.1f%% of capacity%s" % (
@@ -2087,29 +2282,59 @@ def render_banner(ctx, an, args, width, title="JVM thread CPU report"):
     if an["process_pct"] is not None:
         out.append(
             "  %sprocess CPU:%s %.1f%%   %snot in a live thread:%s %.1f%%\n"
-            % (C.DIM, C.RESET, an["process_pct"], C.DIM, C.RESET, an["unattributed"] or 0.0)
+            % (
+                C.DIM,
+                C.RESET,
+                an["process_pct"],
+                C.DIM,
+                C.RESET,
+                an["unattributed"] or 0.0,
+            )
         )
     if args.scale == "capacity" and cap.get("capacity"):
-        out.append("  %s(%%CAP below: 100%% = all %s cores; %%JVM = share of this JVM's CPU)%s\n"
-                   % (C.DIM, _fmt_cores(cap["capacity"]), C.RESET))
+        out.append(
+            "  %s(%%CAP below: 100%% = all %s cores; %%JVM = share of this JVM's CPU)%s\n"
+            % (C.DIM, _fmt_cores(cap["capacity"]), C.RESET)
+        )
     else:
-        out.append("  %s(%%CPU below: 100%% = one core, like top; %%JVM = share of this JVM's CPU)%s\n"
-                   % (C.DIM, C.RESET))
+        out.append(
+            "  %s(%%CPU below: 100%% = one core, like top; %%JVM = share of this JVM's CPU)%s\n"
+            % (C.DIM, C.RESET)
+        )
     return "".join(out)
 
 
 def render_hints(hints, width):
     if not hints:
         return ""
-    tag = {"critical": (C.BG_RED + C.BOLD, " CRIT "), "warning": (C.PEACH + C.BOLD, " WARN "), "info": (C.BLUE, " INFO ")}
-    out = [section("NEXT STEPS") ]
+    tag = {
+        "critical": (C.BG_RED + C.BOLD, " CRIT "),
+        "warning": (C.PEACH + C.BOLD, " WARN "),
+        "info": (C.BLUE, " INFO "),
+    }
+    out = [section("NEXT STEPS")]
     for h in hints:
         col, label = tag[h["severity"]]
-        out.append("  %s%s%s %s%s%s %s[%s]%s\n" % (col, label, C.RESET, C.BOLD, h["title"], C.RESET, C.DIM, h["id"], C.RESET))
+        out.append(
+            "  %s%s%s %s%s%s %s[%s]%s\n"
+            % (
+                col,
+                label,
+                C.RESET,
+                C.BOLD,
+                h["title"],
+                C.RESET,
+                C.DIM,
+                h["id"],
+                C.RESET,
+            )
+        )
         for l in _wrap(h["detail"], width, "         "):
             out.append("%s%s%s\n" % (C.TEXT, l, C.RESET))
         for e in h["evidence"]:
-            out.append("         %s%s %s%s\n" % (C.DIM, G.ARROW, clip(e, width - 12), C.RESET))
+            out.append(
+                "         %s%s %s%s\n" % (C.DIM, G.ARROW, clip(e, width - 12), C.RESET)
+            )
         for c in h["commands"]:
             out.append("         %s$ %s%s\n" % (C.SKY, c, C.RESET))
     return "".join(out)
@@ -2126,7 +2351,10 @@ def render(rows, orphans, meta, ctx, an, hints, args):
 
     # ---- deadlocks first: nothing else matters if the JVM is wedged -------
     if meta.get("deadlocks"):
-        w("\n%s%s%s\n" % (C.BG_RED + C.BOLD, " DEADLOCK DETECTED ".center(width), C.RESET))
+        w(
+            "\n%s%s%s\n"
+            % (C.BG_RED + C.BOLD, " DEADLOCK DETECTED ".center(width), C.RESET)
+        )
         for d in meta["deadlocks"]:
             for l in d.splitlines():
                 w("  %s%s%s\n" % (C.RED, l, C.RESET))
@@ -2140,7 +2368,14 @@ def render(rows, orphans, meta, ctx, an, hints, args):
     unit = "%CAP" if (args.scale == "capacity" and an["capacity"]) else "%CPU"
     w(section("HOTTEST THREADS"))
     hdr = "  %6s  %-14s  %4s  %7s  %8s  %-10s  %-14s  %s" % (
-        unit, "", "%JVM", "PID", "TID", "NID(dump)", "STATE", "THREAD NAME",
+        unit,
+        "",
+        "%JVM",
+        "PID",
+        "TID",
+        "NID(dump)",
+        "STATE",
+        "THREAD NAME",
     )
     w("%s%s%s\n" % (C.DIM, hdr, C.RESET))
     w("%s  %s%s\n" % (C.DIM, "-" * (width - 4), C.RESET))
@@ -2161,24 +2396,46 @@ def render(rows, orphans, meta, ctx, an, hints, args):
         w(
             "  %s%6.1f%s  %s%s%s  %s%s%s  %s%7s%s  %8s  %-10s  %s%-14s%s  %s%s%s\n"
             % (
-                cpu_color(pct), scaled(pct, ctx, args), C.RESET,
-                cpu_color(pct), bar(pct), C.RESET,
-                C.DIM, share_txt(r["share"]), C.RESET,
-                C.GREY, owner, C.RESET,
+                cpu_color(pct),
+                scaled(pct, ctx, args),
+                C.RESET,
+                cpu_color(pct),
+                bar(pct),
+                C.RESET,
+                C.DIM,
+                share_txt(r["share"]),
+                C.RESET,
+                C.GREY,
+                owner,
+                C.RESET,
                 t.nid if t.nid is not None else "?",
                 t.nid_raw or "?",
-                state_color(state), state, C.RESET,
-                C.BOLD if pct >= 40 else "", clip(t.name, name_width), C.RESET,
+                state_color(state),
+                state,
+                C.RESET,
+                C.BOLD if pct >= 40 else "",
+                clip(t.name, name_width),
+                C.RESET,
             )
         )
         frame = t.top_frame()
         if frame and not args.no_frames:
-            w("          %s%s %s%s\n" % (C.DIM, G.ARROW, shorten_frame(frame, width - 14), C.RESET))
+            w(
+                "          %s%s %s%s\n"
+                % (C.DIM, G.ARROW, shorten_frame(frame, width - 14), C.RESET)
+            )
         if t.waiting_on:
-            w("          %s%s %s%s\n" % (C.PEACH, G.WAIT, clip(t.waiting_on[0], width - 14), C.RESET))
+            w(
+                "          %s%s %s%s\n"
+                % (C.PEACH, G.WAIT, clip(t.waiting_on[0], width - 14), C.RESET)
+            )
 
     # ---- threads the dump did not name ------------------------------------
-    orph = [(tid, v) for tid, v in sorted(orphans.items(), key=lambda kv: (-kv[1]["cpu"], kv[0])) if v["cpu"] >= args.min_cpu]
+    orph = [
+        (tid, v)
+        for tid, v in sorted(orphans.items(), key=lambda kv: (-kv[1]["cpu"], kv[0]))
+        if v["cpu"] >= args.min_cpu
+    ]
     if orph:
         w(
             "\n%s  NOT IN THREAD DUMP%s %s(GC / JIT / VM internals, native threads, or started after the dump)%s\n"
@@ -2190,58 +2447,104 @@ def render(rows, orphans, meta, ctx, an, hints, args):
             w(
                 "  %s%6.1f%s  %s%s%s  %s%s%s  %s%7s%s  %8s  %-10s  %s%-14s%s  %s%s%s\n"
                 % (
-                    cpu_color(v["cpu"]), scaled(v["cpu"], ctx, args), C.RESET,
-                    cpu_color(v["cpu"]), bar(v["cpu"]), C.RESET,
-                    C.DIM, share_txt(share), C.RESET,
-                    C.GREY, owner, C.RESET,
-                    tid, hex(tid),
-                    C.BLUE, "native", C.RESET,
-                    C.DIM, clip(v["comm"], name_width), C.RESET,
+                    cpu_color(v["cpu"]),
+                    scaled(v["cpu"], ctx, args),
+                    C.RESET,
+                    cpu_color(v["cpu"]),
+                    bar(v["cpu"]),
+                    C.RESET,
+                    C.DIM,
+                    share_txt(share),
+                    C.RESET,
+                    C.GREY,
+                    owner,
+                    C.RESET,
+                    tid,
+                    hex(tid),
+                    C.BLUE,
+                    "native",
+                    C.RESET,
+                    C.DIM,
+                    clip(v["comm"], name_width),
+                    C.RESET,
                 )
             )
 
     # ---- grouped roll-up --------------------------------------------------
     if not args.no_groups:
-        interesting = [g for g in an["groups"] if g["cpu_pct"] > 0 or g["count"] > 1][:12]
+        interesting = [g for g in an["groups"] if g["cpu_pct"] > 0 or g["count"] > 1][
+            :12
+        ]
         if interesting:
             w(section("CPU BY THREAD GROUP"))
-            w("%s  %6s  %4s  %5s  %-34s %s%s\n" % (C.DIM, unit, "%JVM", "COUNT", "NAME PATTERN", "STATES", C.RESET))
+            w(
+                "%s  %6s  %4s  %5s  %-34s %s%s\n"
+                % (C.DIM, unit, "%JVM", "COUNT", "NAME PATTERN", "STATES", C.RESET)
+            )
             for g in interesting:
                 states = ", ".join(
-                    "%s%s%d" % (s.split("_")[0].lower(), G.TIMES, c) for s, c in list(g["states"].items())[:3]
+                    "%s%s%d" % (s.split("_")[0].lower(), G.TIMES, c)
+                    for s, c in list(g["states"].items())[:3]
                 )
                 w(
                     "  %s%6.1f%s  %s%s%s  %5d  %-34s %s%s%s\n"
                     % (
-                        cpu_color(g["cpu_pct"]), scaled(g["cpu_pct"], ctx, args), C.RESET,
-                        C.DIM, share_txt(g["share_of_jvm_pct"]), C.RESET,
-                        g["count"], clip(g["pattern"], 34),
-                        C.DIM, states, C.RESET,
+                        cpu_color(g["cpu_pct"]),
+                        scaled(g["cpu_pct"], ctx, args),
+                        C.RESET,
+                        C.DIM,
+                        share_txt(g["share_of_jvm_pct"]),
+                        C.RESET,
+                        g["count"],
+                        clip(g["pattern"], 34),
+                        C.DIM,
+                        states,
+                        C.RESET,
                     )
                 )
 
     # ---- state census -----------------------------------------------------
     w(section("THREAD STATES"))
     parts = [
-        "%s%s%s %d (%.1f%% cpu)" % (state_color(s["state"]), s["state"].lower(), C.RESET, s["count"], s["cpu_pct"])
+        "%s%s%s %d (%.1f%% cpu)"
+        % (
+            state_color(s["state"]),
+            s["state"].lower(),
+            C.RESET,
+            s["count"],
+            s["cpu_pct"],
+        )
         for s in an["states"]
     ]
     w("  " + "   ".join(parts) + "\n")
 
     blocked = an["blocked"]
     if blocked:
-        w("\n%s  BLOCKED THREADS%s %s(%d)%s\n" % (C.BOLD + C.RED, C.RESET, C.DIM, len(blocked), C.RESET))
+        w(
+            "\n%s  BLOCKED THREADS%s %s(%d)%s\n"
+            % (C.BOLD + C.RED, C.RESET, C.DIM, len(blocked), C.RESET)
+        )
         for r in blocked[:10]:
             t = r["thread"]
             w(
                 "  %s%-30s%s %s%s%s\n"
-                % (C.RED, clip(t.name, 30), C.RESET, C.DIM,
-                   clip(t.waiting_on[0] if t.waiting_on else t.top_frame(), width - 36), C.RESET)
+                % (
+                    C.RED,
+                    clip(t.name, 30),
+                    C.RESET,
+                    C.DIM,
+                    clip(
+                        t.waiting_on[0] if t.waiting_on else t.top_frame(), width - 36
+                    ),
+                    C.RESET,
+                )
             )
 
     # ---- full stacks for the hottest --------------------------------------
     if args.frames > 0:
-        deep = [r for r in shown if (r["cpu"] or 0) >= max(args.min_cpu, 0.1)][: args.stacks]
+        deep = [r for r in shown if (r["cpu"] or 0) >= max(args.min_cpu, 0.1)][
+            : args.stacks
+        ]
         if deep:
             w(section("STACKS OF THE HOTTEST THREADS"))
             for r in deep:
@@ -2252,18 +2555,39 @@ def render(rows, orphans, meta, ctx, an, hints, args):
                     nid_disp += " (%s)" % t.nid_hex
                 w(
                     '\n  %s%.1f%%%s  %s"%s"%s  %spid=%s tid=%s nid=%s %s%s\n'
-                    % (cpu_color(r["cpu"]), r["cpu"], C.RESET, C.BOLD, t.name, C.RESET,
-                       C.DIM, owner, t.nid, nid_disp, state.lower(), C.RESET)
+                    % (
+                        cpu_color(r["cpu"]),
+                        r["cpu"],
+                        C.RESET,
+                        C.BOLD,
+                        t.name,
+                        C.RESET,
+                        C.DIM,
+                        owner,
+                        t.nid,
+                        nid_disp,
+                        state.lower(),
+                        C.RESET,
+                    )
                 )
                 if not t.frames:
-                    w("      %s(no java frames - native/VM thread)%s\n" % (C.GREY, C.RESET))
+                    w(
+                        "      %s(no java frames - native/VM thread)%s\n"
+                        % (C.GREY, C.RESET)
+                    )
                 for f in t.frames[: args.frames]:
                     if f.startswith("- "):
-                        w("      %s%s%s\n" % (C.PEACH, shorten_frame(f, width - 8), C.RESET))
+                        w(
+                            "      %s%s%s\n"
+                            % (C.PEACH, shorten_frame(f, width - 8), C.RESET)
+                        )
                     else:
                         w("      %s\n" % shorten_frame(f, width - 8))
                 if len(t.frames) > args.frames:
-                    w("      %s... %d more frames%s\n" % (C.GREY, len(t.frames) - args.frames, C.RESET))
+                    w(
+                        "      %s... %d more frames%s\n"
+                        % (C.GREY, len(t.frames) - args.frames, C.RESET)
+                    )
 
     if not args.no_hints:
         w(render_hints(hints, width))
@@ -2278,45 +2602,102 @@ def render_summary(summary, args):
     w = out.append
     n = summary["rounds"]
     title = " persistent hotspots: %d rounds over %.1fs%s " % (
-        n, summary["duration_s"], " (interrupted)" if summary["interrupted"] else "")
+        n,
+        summary["duration_s"],
+        " (interrupted)" if summary["interrupted"] else "",
+    )
     w("\n%s%s%s\n" % (C.BOLD + C.MAUVE, title.center(width, "="), C.RESET))
-    w("  %shot = at least %.0f%% of one core in a round;  avg counts absent rounds as 0%s\n"
-      % (C.DIM, summary["hot_threshold_pct"], C.RESET))
+    w(
+        "  %shot = at least %.0f%% of one core in a round;  avg counts absent rounds as 0%s\n"
+        % (C.DIM, summary["hot_threshold_pct"], C.RESET)
+    )
     tot = summary["total_cpu_pct_series"]
     if tot:
         peak = max(tot) or 1.0
-        w("  %stotal CPU per round:%s %s  %savg %.1f%%  min %.1f%%  max %.1f%%%s\n" % (
-            C.DIM, C.RESET, sparkline(tot[-60:], full=peak), C.DIM,
-            sum(tot) / len(tot), min(tot), max(tot), C.RESET))
+        w(
+            "  %stotal CPU per round:%s %s  %savg %.1f%%  min %.1f%%  max %.1f%%%s\n"
+            % (
+                C.DIM,
+                C.RESET,
+                sparkline(tot[-60:], full=peak),
+                C.DIM,
+                sum(tot) / len(tot),
+                min(tot),
+                max(tot),
+                C.RESET,
+            )
+        )
 
     threads = summary["threads"]
     if args.top:
         threads = threads[: args.top]
     w(section("THREADS THAT WERE HOT"))
     if not threads:
-        w("  %s(no thread reached %.0f%% of a core in any round)%s\n" % (C.GREY, summary["hot_threshold_pct"], C.RESET))
+        w(
+            "  %s(no thread reached %.0f%% of a core in any round)%s\n"
+            % (C.GREY, summary["hot_threshold_pct"], C.RESET)
+        )
     else:
         spark_w = max(9, min(n, 30))
-        w("%s  %6s  %6s  %5s  %-*s  %-10s  %s%s\n" % (
-            C.DIM, "AVG", "MAX", "HOT", spark_w, "PER ROUND", "PATTERN", "THREAD", C.RESET))
+        w(
+            "%s  %6s  %6s  %5s  %-*s  %-10s  %s%s\n"
+            % (
+                C.DIM,
+                "AVG",
+                "MAX",
+                "HOT",
+                spark_w,
+                "PER ROUND",
+                "PATTERN",
+                "THREAD",
+                C.RESET,
+            )
+        )
         cls_col = {"persistent": C.RED, "recurring": C.PEACH, "spike": C.YELLOW}
         for t in threads:
-            w("  %s%6.1f%s  %6.1f  %5s  %s%-*s%s  %s%-10s%s  %s%s%s\n" % (
-                cpu_color(t["avg_cpu_pct"]), t["avg_cpu_pct"], C.RESET,
-                t["max_cpu_pct"],
-                "%d/%d" % (t["rounds_hot"], n),
-                cpu_color(t["max_cpu_pct"]), spark_w, sparkline(t["series"][-spark_w:]), C.RESET,
-                cls_col.get(t["classification"], ""), t["classification"], C.RESET,
-                C.BOLD, clip(t["name"], max(20, width - 50 - spark_w)), C.RESET,
-            ))
+            w(
+                "  %s%6.1f%s  %6.1f  %5s  %s%-*s%s  %s%-10s%s  %s%s%s\n"
+                % (
+                    cpu_color(t["avg_cpu_pct"]),
+                    t["avg_cpu_pct"],
+                    C.RESET,
+                    t["max_cpu_pct"],
+                    "%d/%d" % (t["rounds_hot"], n),
+                    cpu_color(t["max_cpu_pct"]),
+                    spark_w,
+                    sparkline(t["series"][-spark_w:]),
+                    C.RESET,
+                    cls_col.get(t["classification"], ""),
+                    t["classification"],
+                    C.RESET,
+                    C.BOLD,
+                    clip(t["name"], max(20, width - 50 - spark_w)),
+                    C.RESET,
+                )
+            )
             if t["dominant_top_frame"] and not args.no_frames:
-                w("          %s%s %s  (%d/%d hot rounds)%s\n" % (
-                    C.DIM, G.ARROW, shorten_frame(t["dominant_top_frame"], width - 40),
-                    t["dominant_top_frame_rounds"], t["rounds_hot"], C.RESET))
+                w(
+                    "          %s%s %s  (%d/%d hot rounds)%s\n"
+                    % (
+                        C.DIM,
+                        G.ARROW,
+                        shorten_frame(t["dominant_top_frame"], width - 40),
+                        t["dominant_top_frame_rounds"],
+                        t["rounds_hot"],
+                        C.RESET,
+                    )
+                )
 
     if summary["hint_counts"]:
         w(section("HINTS RAISED ACROSS ROUNDS"))
-        w("  " + "   ".join("%s %s%s%d%s" % (k, C.DIM, G.TIMES, v, C.RESET) for k, v in summary["hint_counts"].items()) + "\n")
+        w(
+            "  "
+            + "   ".join(
+                "%s %s%s%d%s" % (k, C.DIM, G.TIMES, v, C.RESET)
+                for k, v in summary["hint_counts"].items()
+            )
+            + "\n"
+        )
     if not args.no_hints:
         w(render_hints(summary["hints"], width))
     w("\n")
@@ -2367,7 +2748,12 @@ def build_report(rows, orphans, meta, ctx, an, hints):
             ("unit", "percent_of_one_core"),
             ("total_pct", _r2(total)),
             ("total_cores", round(an["cores"], 3)),
-            ("pct_of_capacity", _r2(an["of_capacity"] * 100.0) if an["of_capacity"] is not None else None),
+            (
+                "pct_of_capacity",
+                _r2(an["of_capacity"] * 100.0)
+                if an["of_capacity"] is not None
+                else None,
+            ),
             ("process_pct", an["process_pct"]),
             ("unattributed_pct", an["unattributed"]),
         ]
@@ -2375,12 +2761,19 @@ def build_report(rows, orphans, meta, ctx, an, hints):
     p["total_thread_cpu_pct"] = _r2(total)
     p["process"] = ctx.get("proc")
     p["coverage"] = OrderedDict(
-        [("threads_in_dump", len(rows)), ("threads_with_cpu", an["matched"]), ("unmatched_native", len(orphans))]
+        [
+            ("threads_in_dump", len(rows)),
+            ("threads_with_cpu", an["matched"]),
+            ("unmatched_native", len(orphans)),
+        ]
     )
     p["deadlocks"] = meta.get("deadlocks", [])
     p["deadlock_stacks"] = meta.get("deadlock_detail", "")
     p["threads"] = []
-    for r in sorted(rows, key=lambda r: (-(r["cpu"] if r["cpu"] is not None else -1), r["thread"].name)):
+    for r in sorted(
+        rows,
+        key=lambda r: (-(r["cpu"] if r["cpu"] is not None else -1), r["thread"].name),
+    ):
         d = r["thread"].to_dict()
         d["pid"] = pid
         d["cpu_pct"] = r["cpu"]
@@ -2396,7 +2789,10 @@ def build_report(rows, orphans, meta, ctx, an, hints):
                 ("os_tid", tid),
                 ("nid_hex", hex(tid)),
                 ("cpu_pct", v["cpu"]),
-                ("share_of_jvm_pct", _r2(v["cpu"] / total * 100.0) if total > 0 else None),
+                (
+                    "share_of_jvm_pct",
+                    _r2(v["cpu"] / total * 100.0) if total > 0 else None,
+                ),
                 ("comm", v["comm"]),
             ]
         )
@@ -2443,38 +2839,79 @@ def json_schema():
     header_props = OrderedDict(
         [
             ("schema", {"type": "string", "description": "URL of this schema."}),
-            ("schema_version", {
-                "type": "string",
-                "pattern": r"^1\.\d+\.\d+$",
-                "description": "SemVer of the output contract. MAJOR changes break consumers; "
-                               "MINOR only adds fields or enum values; consumers must ignore unknown keys.",
-            }),
-            ("tool", {
-                "type": "object",
-                "required": ["name", "version"],
-                "properties": {"name": {"const": PROG}, "version": {"type": "string"}},
-            }),
+            (
+                "schema_version",
+                {
+                    "type": "string",
+                    "pattern": r"^1\.\d+\.\d+$",
+                    "description": "SemVer of the output contract. MAJOR changes break consumers; "
+                    "MINOR only adds fields or enum values; consumers must ignore unknown keys.",
+                },
+            ),
+            (
+                "tool",
+                {
+                    "type": "object",
+                    "required": ["name", "version"],
+                    "properties": {
+                        "name": {"const": PROG},
+                        "version": {"type": "string"},
+                    },
+                },
+            ),
         ]
     )
     hint = {
         "type": "object",
-        "required": ["id", "severity", "title", "detail", "evidence", "commands", "threads"],
+        "required": [
+            "id",
+            "severity",
+            "title",
+            "detail",
+            "evidence",
+            "commands",
+            "threads",
+        ],
         "properties": OrderedDict(
             [
-                ("id", {"enum": list(HINT_RULES), "description": "Stable rule identifier."}),
+                (
+                    "id",
+                    {
+                        "enum": list(HINT_RULES),
+                        "description": "Stable rule identifier.",
+                    },
+                ),
                 ("severity", {"enum": ["critical", "warning", "info"]}),
                 ("title", {"type": "string"}),
                 ("detail", {"type": "string"}),
                 ("evidence", strs),
-                ("commands", dict(strs, description="Shell commands to run next; <pid> when the pid is unknown.")),
+                (
+                    "commands",
+                    dict(
+                        strs,
+                        description="Shell commands to run next; <pid> when the pid is unknown.",
+                    ),
+                ),
                 ("threads", strs),
             ]
         ),
     }
     thread = {
         "type": "object",
-        "required": ["name", "pid", "os_tid", "nid", "nid_hex", "state", "jvm_internal", "cpu_pct",
-                     "top_frame", "stack", "locks_held", "waiting_on"],
+        "required": [
+            "name",
+            "pid",
+            "os_tid",
+            "nid",
+            "nid_hex",
+            "state",
+            "jvm_internal",
+            "cpu_pct",
+            "top_frame",
+            "stack",
+            "locks_held",
+            "waiting_on",
+        ],
         "properties": OrderedDict(
             [
                 ("name", {"type": "string"}),
@@ -2483,24 +2920,50 @@ def json_schema():
                 ("daemon", {"type": "boolean"}),
                 ("priority", nint),
                 ("os_priority", nint),
-                ("os_tid", dict(nint, description="Kernel TID (Linux); what top -H shows as PID.")),
-                ("nid", dict(nint, description="Same value as os_tid; jstack's name for it.")),
+                (
+                    "os_tid",
+                    dict(
+                        nint,
+                        description="Kernel TID (Linux); what top -H shows as PID.",
+                    ),
+                ),
+                (
+                    "nid",
+                    dict(
+                        nint, description="Same value as os_tid; jstack's name for it."
+                    ),
+                ),
                 ("nid_hex", nstr),
                 ("nid_as_printed", nstr),
                 ("jvm_tid", nstr),
                 ("cumulative_cpu_ms", nnum),
                 ("elapsed_s", nnum),
-                ("state", {"type": "string", "description": "java.lang.Thread.State, or JVM_INTERNAL."}),
+                (
+                    "state",
+                    {
+                        "type": "string",
+                        "description": "java.lang.Thread.State, or JVM_INTERNAL.",
+                    },
+                ),
                 ("state_detail", {"type": "string"}),
                 ("os_state", {"type": "string"}),
                 ("jvm_internal", {"type": "boolean"}),
-                ("cpu_pct", dict(nnum, description="Percent of one core over the window; null = no sample.")),
+                (
+                    "cpu_pct",
+                    dict(
+                        nnum,
+                        description="Percent of one core over the window; null = no sample.",
+                    ),
+                ),
                 ("cpu_pct_of_capacity", nnum),
                 ("share_of_jvm_pct", nnum),
                 ("os_comm", nstr),
                 ("cpu_time_total", nstr),
                 ("top_frame", {"type": "string"}),
-                ("app_frame", {"type": "string", "description": "First frame outside the JDK."}),
+                (
+                    "app_frame",
+                    {"type": "string", "description": "First frame outside the JDK."},
+                ),
                 ("stack", strs),
                 ("locks_held", strs),
                 ("waiting_on", strs),
@@ -2513,107 +2976,266 @@ def json_schema():
             [
                 ("kind", {"const": "report"}),
                 ("round", {"type": "integer", "minimum": 1}),
-                ("rounds_planned", dict(nint, description="null = until interrupted (--watch).")),
-                ("generated_at", {"type": "string", "description": "Human-readable time, as shown in the text report."}),
-                ("sampled_at", dict(nstr, description="ISO 8601; no UTC offset when it came from a dump file.")),
+                (
+                    "rounds_planned",
+                    dict(nint, description="null = until interrupted (--watch)."),
+                ),
+                (
+                    "generated_at",
+                    {
+                        "type": "string",
+                        "description": "Human-readable time, as shown in the text report.",
+                    },
+                ),
+                (
+                    "sampled_at",
+                    dict(
+                        nstr,
+                        description="ISO 8601; no UTC offset when it came from a dump file.",
+                    ),
+                ),
                 ("pid", nint),
                 ("ppid", nint),
                 ("cmdline", nstr),
-                ("method", {"type": "string", "description": "Human-readable sampling method."}),
-                ("method_id", {"enum": ["top", "proc", "jstack", "offline-top", "offline-lifetime"]}),
+                (
+                    "method",
+                    {
+                        "type": "string",
+                        "description": "Human-readable sampling method.",
+                    },
+                ),
+                (
+                    "method_id",
+                    {
+                        "enum": [
+                            "top",
+                            "proc",
+                            "jstack",
+                            "offline-top",
+                            "offline-lifetime",
+                        ]
+                    },
+                ),
                 ("sample_window_s", nnum),
                 ("window_source", nstr),
-                ("cpu_count", dict(nint, description="Online CPUs on the sampling host (legacy)."))
-                ,
-                ("capacity", {
-                    "type": "object",
-                    "required": ["host_cpus", "affinity_cpus", "cgroup_quota_cores", "capacity_cores", "source"],
-                    "properties": OrderedDict([
-                        ("host_cpus", nint),
-                        ("affinity_cpus", nint),
-                        ("cgroup_quota_cores", nnum),
-                        ("capacity_cores", dict(nnum, description="Cores the JVM can use: min of the above.")),
-                        ("source", {"enum": ["host", "affinity", "cgroup quota", "--cpus", "unknown"]}),
-                        ("cgroup_path", dict(nstr, description="cgroup directory whose quota applies.")),
-                    ]),
-                }),
-                ("cpu", {
-                    "type": "object",
-                    "required": ["unit", "total_pct", "total_cores", "pct_of_capacity", "process_pct", "unattributed_pct"],
-                    "properties": OrderedDict([
-                        ("unit", {"const": "percent_of_one_core"}),
-                        ("total_pct", {"type": "number"}),
-                        ("total_cores", {"type": "number"}),
-                        ("pct_of_capacity", nnum),
-                        ("process_pct", dict(nnum, description="Whole-process CPU (--method proc only).")),
-                        ("unattributed_pct", dict(nnum, description="process_pct minus live threads.")),
-                    ]),
-                }),
+                (
+                    "cpu_count",
+                    dict(
+                        nint, description="Online CPUs on the sampling host (legacy)."
+                    ),
+                ),
+                (
+                    "capacity",
+                    {
+                        "type": "object",
+                        "required": [
+                            "host_cpus",
+                            "affinity_cpus",
+                            "cgroup_quota_cores",
+                            "capacity_cores",
+                            "source",
+                        ],
+                        "properties": OrderedDict(
+                            [
+                                ("host_cpus", nint),
+                                ("affinity_cpus", nint),
+                                ("cgroup_quota_cores", nnum),
+                                (
+                                    "capacity_cores",
+                                    dict(
+                                        nnum,
+                                        description="Cores the JVM can use: min of the above.",
+                                    ),
+                                ),
+                                (
+                                    "source",
+                                    {
+                                        "enum": [
+                                            "host",
+                                            "affinity",
+                                            "cgroup quota",
+                                            "--cpus",
+                                            "unknown",
+                                        ]
+                                    },
+                                ),
+                                (
+                                    "cgroup_path",
+                                    dict(
+                                        nstr,
+                                        description="cgroup directory whose quota applies.",
+                                    ),
+                                ),
+                            ]
+                        ),
+                    },
+                ),
+                (
+                    "cpu",
+                    {
+                        "type": "object",
+                        "required": [
+                            "unit",
+                            "total_pct",
+                            "total_cores",
+                            "pct_of_capacity",
+                            "process_pct",
+                            "unattributed_pct",
+                        ],
+                        "properties": OrderedDict(
+                            [
+                                ("unit", {"const": "percent_of_one_core"}),
+                                ("total_pct", {"type": "number"}),
+                                ("total_cores", {"type": "number"}),
+                                ("pct_of_capacity", nnum),
+                                (
+                                    "process_pct",
+                                    dict(
+                                        nnum,
+                                        description="Whole-process CPU (--method proc only).",
+                                    ),
+                                ),
+                                (
+                                    "unattributed_pct",
+                                    dict(
+                                        nnum,
+                                        description="process_pct minus live threads.",
+                                    ),
+                                ),
+                            ]
+                        ),
+                    },
+                ),
                 ("total_thread_cpu_pct", {"type": "number"}),
                 ("process", {"type": ["object", "null"]}),
-                ("coverage", {
-                    "type": "object",
-                    "required": ["threads_in_dump", "threads_with_cpu", "unmatched_native"],
-                    "properties": {
-                        "threads_in_dump": {"type": "integer"},
-                        "threads_with_cpu": {"type": "integer"},
-                        "unmatched_native": {"type": "integer"},
+                (
+                    "coverage",
+                    {
+                        "type": "object",
+                        "required": [
+                            "threads_in_dump",
+                            "threads_with_cpu",
+                            "unmatched_native",
+                        ],
+                        "properties": {
+                            "threads_in_dump": {"type": "integer"},
+                            "threads_with_cpu": {"type": "integer"},
+                            "unmatched_native": {"type": "integer"},
+                        },
                     },
-                }),
+                ),
                 ("deadlocks", strs),
                 ("deadlock_stacks", {"type": "string"}),
                 ("threads", {"type": "array", "items": {"$ref": "#/$defs/thread"}}),
-                ("unmatched_native_threads", {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "required": ["os_tid", "nid_hex", "cpu_pct", "comm"],
-                        "properties": OrderedDict([
-                            ("pid", nint), ("os_tid", {"type": "integer"}), ("nid_hex", {"type": "string"}),
-                            ("cpu_pct", {"type": "number"}), ("share_of_jvm_pct", nnum), ("comm", {"type": "string"}),
-                        ]),
+                (
+                    "unmatched_native_threads",
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["os_tid", "nid_hex", "cpu_pct", "comm"],
+                            "properties": OrderedDict(
+                                [
+                                    ("pid", nint),
+                                    ("os_tid", {"type": "integer"}),
+                                    ("nid_hex", {"type": "string"}),
+                                    ("cpu_pct", {"type": "number"}),
+                                    ("share_of_jvm_pct", nnum),
+                                    ("comm", {"type": "string"}),
+                                ]
+                            ),
+                        },
                     },
-                }),
-                ("groups", {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "required": ["pattern", "count", "cpu_pct", "states"],
-                        "properties": OrderedDict([
-                            ("pattern", {"type": "string"}), ("count", {"type": "integer"}),
-                            ("cpu_pct", {"type": "number"}), ("share_of_jvm_pct", nnum),
-                            ("states", {"type": "object", "additionalProperties": {"type": "integer"}}),
-                        ]),
+                ),
+                (
+                    "groups",
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["pattern", "count", "cpu_pct", "states"],
+                            "properties": OrderedDict(
+                                [
+                                    ("pattern", {"type": "string"}),
+                                    ("count", {"type": "integer"}),
+                                    ("cpu_pct", {"type": "number"}),
+                                    ("share_of_jvm_pct", nnum),
+                                    (
+                                        "states",
+                                        {
+                                            "type": "object",
+                                            "additionalProperties": {"type": "integer"},
+                                        },
+                                    ),
+                                ]
+                            ),
+                        },
                     },
-                }),
-                ("states", {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "required": ["state", "count", "cpu_pct"],
-                        "properties": {"state": {"type": "string"}, "count": {"type": "integer"}, "cpu_pct": {"type": "number"}},
+                ),
+                (
+                    "states",
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["state", "count", "cpu_pct"],
+                            "properties": {
+                                "state": {"type": "string"},
+                                "count": {"type": "integer"},
+                                "cpu_pct": {"type": "number"},
+                            },
+                        },
                     },
-                }),
-                ("contended_locks", {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "required": ["lock", "class", "waiters", "owner"],
-                        "properties": OrderedDict([
-                            ("lock", {"type": "string"}), ("class", {"type": "string"}), ("waiters", strs),
-                            ("owner", nstr), ("owner_state", nstr), ("owner_cpu_pct", nnum), ("owner_frame", nstr),
-                        ]),
+                ),
+                (
+                    "contended_locks",
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["lock", "class", "waiters", "owner"],
+                            "properties": OrderedDict(
+                                [
+                                    ("lock", {"type": "string"}),
+                                    ("class", {"type": "string"}),
+                                    ("waiters", strs),
+                                    ("owner", nstr),
+                                    ("owner_state", nstr),
+                                    ("owner_cpu_pct", nnum),
+                                    ("owner_frame", nstr),
+                                ]
+                            ),
+                        },
                     },
-                }),
+                ),
                 ("hints", {"type": "array", "items": {"$ref": "#/$defs/hint"}}),
             ]
         )
     )
     report = {
         "type": "object",
-        "required": ["schema", "schema_version", "kind", "tool", "round", "pid", "method", "method_id",
-                     "sample_window_s", "capacity", "cpu", "total_thread_cpu_pct", "coverage", "deadlocks",
-                     "threads", "unmatched_native_threads", "groups", "states", "contended_locks", "hints"],
+        "required": [
+            "schema",
+            "schema_version",
+            "kind",
+            "tool",
+            "round",
+            "pid",
+            "method",
+            "method_id",
+            "sample_window_s",
+            "capacity",
+            "cpu",
+            "total_thread_cpu_pct",
+            "coverage",
+            "deadlocks",
+            "threads",
+            "unmatched_native_threads",
+            "groups",
+            "states",
+            "contended_locks",
+            "hints",
+        ],
         "properties": report_props,
     }
     summary_props = OrderedDict(header_props)
@@ -2626,36 +3248,82 @@ def json_schema():
                 ("duration_s", {"type": "number"}),
                 ("interrupted", {"type": "boolean"}),
                 ("hot_threshold_pct", {"type": "number"}),
-                ("total_cpu_pct_series", {"type": "array", "items": {"type": "number"}}),
-                ("threads", {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "required": ["name", "os_tid", "rounds_present", "rounds_hot", "avg_cpu_pct", "max_cpu_pct",
-                                     "last_cpu_pct", "series", "dominant_top_frame", "dominant_top_frame_rounds",
-                                     "classification"],
-                        "properties": OrderedDict([
-                            ("name", {"type": "string"}), ("os_tid", nint),
-                            ("rounds_present", {"type": "integer"}), ("rounds_hot", {"type": "integer"}),
-                            ("avg_cpu_pct", {"type": "number"}), ("max_cpu_pct", {"type": "number"}),
-                            ("last_cpu_pct", nnum),
-                            ("series", {"type": "array", "items": nnum}),
-                            ("dominant_top_frame", {"type": "string"}),
-                            ("dominant_top_frame_rounds", {"type": "integer"}),
-                            ("dominant_app_frame", {"type": "string", "description": "Most common first non-JDK frame while hot."}),
-                            ("classification", {"enum": ["persistent", "recurring", "spike"]}),
-                        ]),
+                (
+                    "total_cpu_pct_series",
+                    {"type": "array", "items": {"type": "number"}},
+                ),
+                (
+                    "threads",
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": [
+                                "name",
+                                "os_tid",
+                                "rounds_present",
+                                "rounds_hot",
+                                "avg_cpu_pct",
+                                "max_cpu_pct",
+                                "last_cpu_pct",
+                                "series",
+                                "dominant_top_frame",
+                                "dominant_top_frame_rounds",
+                                "classification",
+                            ],
+                            "properties": OrderedDict(
+                                [
+                                    ("name", {"type": "string"}),
+                                    ("os_tid", nint),
+                                    ("rounds_present", {"type": "integer"}),
+                                    ("rounds_hot", {"type": "integer"}),
+                                    ("avg_cpu_pct", {"type": "number"}),
+                                    ("max_cpu_pct", {"type": "number"}),
+                                    ("last_cpu_pct", nnum),
+                                    ("series", {"type": "array", "items": nnum}),
+                                    ("dominant_top_frame", {"type": "string"}),
+                                    ("dominant_top_frame_rounds", {"type": "integer"}),
+                                    (
+                                        "dominant_app_frame",
+                                        {
+                                            "type": "string",
+                                            "description": "Most common first non-JDK frame while hot.",
+                                        },
+                                    ),
+                                    (
+                                        "classification",
+                                        {"enum": ["persistent", "recurring", "spike"]},
+                                    ),
+                                ]
+                            ),
+                        },
                     },
-                }),
-                ("hint_counts", {"type": "object", "additionalProperties": {"type": "integer"}}),
+                ),
+                (
+                    "hint_counts",
+                    {"type": "object", "additionalProperties": {"type": "integer"}},
+                ),
                 ("hints", {"type": "array", "items": {"$ref": "#/$defs/hint"}}),
             ]
         )
     )
     summary = {
         "type": "object",
-        "required": ["schema", "schema_version", "kind", "tool", "pid", "rounds", "duration_s", "interrupted",
-                     "hot_threshold_pct", "total_cpu_pct_series", "threads", "hint_counts", "hints"],
+        "required": [
+            "schema",
+            "schema_version",
+            "kind",
+            "tool",
+            "pid",
+            "rounds",
+            "duration_s",
+            "interrupted",
+            "hot_threshold_pct",
+            "total_cpu_pct_series",
+            "threads",
+            "hint_counts",
+            "hints",
+        ],
         "properties": summary_props,
     }
     series_props = OrderedDict(header_props)
@@ -2678,15 +3346,34 @@ def json_schema():
             ("$schema", "https://json-schema.org/draft/2020-12/schema"),
             ("$id", SCHEMA_ID),
             ("title", "jthread-cpu output"),
-            ("description",
-             "One JSON document from `jthread-cpu -o json` (a report, or a series when "
-             "--count > 1), or one line of `-o jsonl` (a report per round, then a summary). "
-             "Schema version %s. Unknown keys may appear in later MINOR versions." % SCHEMA_VERSION),
+            (
+                "description",
+                "One JSON document from `jthread-cpu -o json` (a report, or a series when "
+                "--count > 1), or one line of `-o jsonl` (a report per round, then a summary). "
+                "Schema version %s. Unknown keys may appear in later MINOR versions."
+                % SCHEMA_VERSION,
+            ),
             ("x-schema-version", SCHEMA_VERSION),
-            ("oneOf", [{"$ref": "#/$defs/report"}, {"$ref": "#/$defs/summary"}, {"$ref": "#/$defs/series"}]),
-            ("$defs", OrderedDict(
-                [("report", report), ("summary", summary), ("series", series), ("thread", thread), ("hint", hint)]
-            )),
+            (
+                "oneOf",
+                [
+                    {"$ref": "#/$defs/report"},
+                    {"$ref": "#/$defs/summary"},
+                    {"$ref": "#/$defs/series"},
+                ],
+            ),
+            (
+                "$defs",
+                OrderedDict(
+                    [
+                        ("report", report),
+                        ("summary", summary),
+                        ("series", series),
+                        ("thread", thread),
+                        ("hint", hint),
+                    ]
+                ),
+            ),
         ]
     )
 
@@ -2718,65 +3405,160 @@ capture for later offline analysis:
     )
     g = p.add_argument_group("what to sample")
     g.add_argument("-p", "--pid", type=int, help="JVM pid (default: autodetect)")
-    g.add_argument("-d", "--delay", type=float, default=None,
-                   help="sample window in seconds (default: 2)")
-    g.add_argument("--method", choices=["auto", "top", "proc", "jstack"], default="auto",
-                   help="where per-thread CPU comes from (default: auto)")
-    g.add_argument("--samples", type=int, default=2,
-                   help="top iterations per round; the last one is used (default: 2)")
-    g.add_argument("--jstack-file", help="read a thread dump from a file instead of attaching")
+    g.add_argument(
+        "-d",
+        "--delay",
+        type=float,
+        default=None,
+        help="sample window in seconds (default: 2)",
+    )
+    g.add_argument(
+        "--method",
+        choices=["auto", "top", "proc", "jstack"],
+        default="auto",
+        help="where per-thread CPU comes from (default: auto)",
+    )
+    g.add_argument(
+        "--samples",
+        type=int,
+        default=2,
+        help="top iterations per round; the last one is used (default: 2)",
+    )
+    g.add_argument(
+        "--jstack-file", help="read a thread dump from a file instead of attaching"
+    )
     g.add_argument("--top-file", help="read `top -H -b` output from a file")
     g.add_argument("--force", action="store_true", help="allow jstack -F on a hung JVM")
     g.add_argument("--top-bin", default="top", help="path to the top binary")
-    g.add_argument("--jstack-bin", help="path to jcmd or jstack when the JDK is not on PATH")
+    g.add_argument(
+        "--jstack-bin", help="path to jcmd or jstack when the JDK is not on PATH"
+    )
 
     g = p.add_argument_group("repeated sampling")
-    g.add_argument("-c", "--count", type=int, default=None,
-                   help="number of rounds, 0 = until Ctrl-C (default: 1, or 0 with --watch)")
-    g.add_argument("-i", "--interval", type=float, default=0.0,
-                   help="pause between rounds in seconds (default: 0)")
-    g.add_argument("-w", "--watch", action="store_true",
-                   help="redraw the report every round (clears the screen on a terminal)")
-    g.add_argument("--summary-only", action="store_true",
-                   help="with several rounds, print only the final persistence summary")
-    g.add_argument("--hot", type=float, default=25.0,
-                   help="%%CPU of one core that counts as hot in the summary (default: 25)")
-    g.add_argument("--save-dir", metavar="DIR",
-                   help="keep every round's raw dump, CPU sample and JSON report in DIR")
+    g.add_argument(
+        "-c",
+        "--count",
+        type=int,
+        default=None,
+        help="number of rounds, 0 = until Ctrl-C (default: 1, or 0 with --watch)",
+    )
+    g.add_argument(
+        "-i",
+        "--interval",
+        type=float,
+        default=0.0,
+        help="pause between rounds in seconds (default: 0)",
+    )
+    g.add_argument(
+        "-w",
+        "--watch",
+        action="store_true",
+        help="redraw the report every round (clears the screen on a terminal)",
+    )
+    g.add_argument(
+        "--summary-only",
+        action="store_true",
+        help="with several rounds, print only the final persistence summary",
+    )
+    g.add_argument(
+        "--hot",
+        type=float,
+        default=25.0,
+        help="%%CPU of one core that counts as hot in the summary (default: 25)",
+    )
+    g.add_argument(
+        "--save-dir",
+        metavar="DIR",
+        help="keep every round's raw dump, CPU sample and JSON report in DIR",
+    )
 
     g = p.add_argument_group("CPU units")
-    g.add_argument("--cpus", type=float, default=None,
-                   help="CPU capacity in cores (default: detected from host, affinity and "
-                        "cgroup quota; required to normalise offline files)")
-    g.add_argument("--scale", choices=["core", "capacity"], default="core",
-                   help="core: 100%% = one core, like top (default); "
-                        "capacity: 100%% = every core the JVM can use")
+    g.add_argument(
+        "--cpus",
+        type=float,
+        default=None,
+        help="CPU capacity in cores (default: detected from host, affinity and "
+        "cgroup quota; required to normalise offline files)",
+    )
+    g.add_argument(
+        "--scale",
+        choices=["core", "capacity"],
+        default="core",
+        help="core: 100%% = one core, like top (default); "
+        "capacity: 100%% = every core the JVM can use",
+    )
 
     g = p.add_argument_group("output")
-    g.add_argument("-n", "--top", type=int, default=15,
-                   help="show this many hottest threads, 0 = all (default: 15)")
-    g.add_argument("-f", "--frames", type=int, default=8,
-                   help="stack frames to print per hot thread, 0 = none (default: 8)")
-    g.add_argument("-s", "--stacks", type=int, default=5,
-                   help="how many threads get a full stack (default: 5)")
-    g.add_argument("-m", "--min-cpu", type=float, default=0.0,
-                   help="hide threads below this %%CPU (default: 0)")
-    g.add_argument("-o", "--output", choices=["text", "json", "jsonl"], default="text",
-                   help="text, json (one document), or jsonl (one line per round + a "
-                        "summary line); default: text")
-    g.add_argument("--json", action="store_true", help=argparse.SUPPRESS)  # legacy alias
-    g.add_argument("--print-schema", action="store_true",
-                   help="print the JSON Schema for -o json/jsonl and exit")
-    g.add_argument("--no-hints", action="store_true", help="omit the NEXT STEPS section")
-    g.add_argument("--theme", default="mocha", choices=["mocha", "macchiato", "frappe", "latte", "auto"],
-                   help="catppuccin flavour; latte is the light one, "
-                        "auto guesses from COLORFGBG (default: mocha)")
+    g.add_argument(
+        "-n",
+        "--top",
+        type=int,
+        default=15,
+        help="show this many hottest threads, 0 = all (default: 15)",
+    )
+    g.add_argument(
+        "-f",
+        "--frames",
+        type=int,
+        default=8,
+        help="stack frames to print per hot thread, 0 = none (default: 8)",
+    )
+    g.add_argument(
+        "-s",
+        "--stacks",
+        type=int,
+        default=5,
+        help="how many threads get a full stack (default: 5)",
+    )
+    g.add_argument(
+        "-m",
+        "--min-cpu",
+        type=float,
+        default=0.0,
+        help="hide threads below this %%CPU (default: 0)",
+    )
+    g.add_argument(
+        "-o",
+        "--output",
+        choices=["text", "json", "jsonl"],
+        default="text",
+        help="text, json (one document), or jsonl (one line per round + a "
+        "summary line); default: text",
+    )
+    g.add_argument(
+        "--json", action="store_true", help=argparse.SUPPRESS
+    )  # legacy alias
+    g.add_argument(
+        "--print-schema",
+        action="store_true",
+        help="print the JSON Schema for -o json/jsonl and exit",
+    )
+    g.add_argument(
+        "--no-hints", action="store_true", help="omit the NEXT STEPS section"
+    )
+    g.add_argument(
+        "--theme",
+        default="mocha",
+        choices=["mocha", "macchiato", "frappe", "latte", "auto"],
+        help="catppuccin flavour; latte is the light one, "
+        "auto guesses from COLORFGBG (default: mocha)",
+    )
     g.add_argument("--no-color", action="store_true", help="disable ANSI colour")
-    g.add_argument("--ascii", action="store_true", help="ASCII bars and arrows instead of box-drawing glyphs")
-    g.add_argument("--no-frames", action="store_true", help="omit the one-line top frame")
-    g.add_argument("--no-groups", action="store_true", help="omit the thread-group roll-up")
+    g.add_argument(
+        "--ascii",
+        action="store_true",
+        help="ASCII bars and arrows instead of box-drawing glyphs",
+    )
+    g.add_argument(
+        "--no-frames", action="store_true", help="omit the one-line top frame"
+    )
+    g.add_argument(
+        "--no-groups", action="store_true", help="omit the thread-group roll-up"
+    )
     p.add_argument("--list", action="store_true", help="list candidate JVMs and exit")
-    p.add_argument("-V", "--version", action="version", version="%(prog)s " + __version__)
+    p.add_argument(
+        "-V", "--version", action="version", version="%(prog)s " + __version__
+    )
     return p
 
 
@@ -2802,7 +3584,9 @@ def save_round(save_dir, idx, raw, report):
                 fh.write(raw["top"])
         elif raw.get("cpu") is not None:
             with open(stem + "-cpu.json", "w") as fh:
-                json.dump({str(k): v for k, v in sorted(raw["cpu"].items())}, fh, indent=1)
+                json.dump(
+                    {str(k): v for k, v in sorted(raw["cpu"].items())}, fh, indent=1
+                )
         with open(stem + "-report.json", "w") as fh:
             json.dump(report, fh, indent=2)
     except OSError as e:
@@ -2812,9 +3596,17 @@ def save_round(save_dir, idx, raw, report):
 def resolve_method(args):
     method = args.method
     if method == "auto":
-        method = "top" if IS_LINUX and shutil.which(args.top_bin) else ("proc" if IS_LINUX else "jstack")
+        method = (
+            "top"
+            if IS_LINUX and shutil.which(args.top_bin)
+            else ("proc" if IS_LINUX else "jstack")
+        )
     if method in ("top", "proc") and not IS_LINUX:
-        why = " (macOS has no `top -H`, and nid there is a mach port, not a TID)" if IS_MAC else ""
+        why = (
+            " (macOS has no `top -H`, and nid there is a mach port, not a TID)"
+            if IS_MAC
+            else ""
+        )
         warn("--method %s needs Linux%s; using --method jstack instead" % (method, why))
         method = "jstack"
     return method
@@ -2828,7 +3620,9 @@ def collect_live(pid, method, args, capacity):
     sampled_at = _iso_now()
     when = time.strftime("%Y-%m-%d %H:%M:%S %Z")
     if method == "jstack":
-        cpu, dump, window, wsrc = sample_jstack_delta(pid, args.delay, force=args.force, tool=args.jstack_bin)
+        cpu, dump, window, wsrc = sample_jstack_delta(
+            pid, args.delay, force=args.force, tool=args.jstack_bin
+        )
         label = "two thread dumps, cpu= delta"
     elif method == "proc":
         cpu, window, proc_pct = sample_proc(pid, args.delay)
@@ -2872,7 +3666,8 @@ def collect_offline(args):
     if not threads:
         die(
             "no thread dump found in %s\n"
-            '  expected jstack/jcmd Thread.print output with "name" ... nid= lines' % args.jstack_file
+            '  expected jstack/jcmd Thread.print output with "name" ... nid= lines'
+            % args.jstack_file
         )
     top_raw = None
     if args.top_file:
@@ -2881,8 +3676,10 @@ def collect_offline(args):
         wsrc = "top clock" if window else None
         if window is None:
             if iters < 2:
-                warn("--top-file has a single top iteration; its %CPU may not cover a "
-                     "short recent window (capture with -n 2)")
+                warn(
+                    "--top-file has a single top iteration; its %CPU may not cover a "
+                    "short recent window (capture with -n 2)"
+                )
             window = args.delay
             wsrc = "-d" if window else None
         method, method_id = "files (top + jstack)", "offline-top"
@@ -2903,9 +3700,19 @@ def collect_offline(args):
         warn("no --top-file: showing lifetime average CPU, not current usage")
     rows, orphans = merge(threads, cpu)
     check_cpu_coverage(rows, orphans, "offline")
-    capacity = cpu_capacity(override=args.cpus) if args.cpus else OrderedDict(
-        [("host", None), ("affinity", None), ("cgroup_quota", None), ("capacity", None), ("source", "unknown"),
-         ("cgroup_dir", None)]
+    capacity = (
+        cpu_capacity(override=args.cpus)
+        if args.cpus
+        else OrderedDict(
+            [
+                ("host", None),
+                ("affinity", None),
+                ("cgroup_quota", None),
+                ("capacity", None),
+                ("source", "unknown"),
+                ("cgroup_dir", None),
+            ]
+        )
     )
     ctx = {
         "pid": args.pid or meta.get("pid"),
@@ -2958,7 +3765,12 @@ def _main(argv=None):
         args.output = "json"
     machine = args.output in ("json", "jsonl")
 
-    if args.no_color or machine or os.environ.get("NO_COLOR") or not sys.stdout.isatty():
+    if (
+        args.no_color
+        or machine
+        or os.environ.get("NO_COLOR")
+        or not sys.stdout.isatty()
+    ):
         C.disable()
     else:
         C.apply_theme(args.theme)
@@ -2988,7 +3800,9 @@ def _main(argv=None):
             warn("--count/--watch need a live JVM; analysing the files once")
         rows, orphans, meta, ctx, raw = collect_offline(args)
         if args.scale == "capacity" and not ctx["capacity"]["capacity"]:
-            warn("--scale capacity needs --cpus N for offline files; showing % of one core")
+            warn(
+                "--scale capacity needs --cpus N for offline files; showing % of one core"
+            )
         an = analyse(rows, orphans, meta, ctx)
         hints = investigation_hints(rows, orphans, meta, ctx, an)
         report = build_report(rows, orphans, meta, ctx, an, hints)
@@ -3005,16 +3819,23 @@ def _main(argv=None):
         args.delay = 2.0
     count = args.count if args.count is not None else (0 if args.watch else 1)
     if count == 0 and args.output == "json":
-        die("-o json writes one document at the end; for an open-ended run use -o jsonl "
-            "(one line per round), or give --count")
+        die(
+            "-o json writes one document at the end; for an open-ended run use -o jsonl "
+            "(one line per round), or give --count"
+        )
 
     pid = args.pid
     if pid is None:
         pids = find_java_pids()
         if not pids:
-            die("no running JVM found; pass --pid, or --jstack-file for offline analysis")
+            die(
+                "no running JVM found; pass --pid, or --jstack-file for offline analysis"
+            )
         if len(pids) > 1:
-            sys.stderr.write("%sseveral JVMs are running; pick one with --pid:%s\n" % (C.YELLOW, C.RESET))
+            sys.stderr.write(
+                "%sseveral JVMs are running; pick one with --pid:%s\n"
+                % (C.YELLOW, C.RESET)
+            )
             for p_, name in pids:
                 sys.stderr.write("  %7d  %s\n" % (p_, name))
             return 2
@@ -3042,7 +3863,10 @@ def _main(argv=None):
             ctx["round"] = idx
             ctx["rounds_planned"] = count or None
             if multi:
-                ctx["round_label"] = "round %d/%s" % (idx, count if count else ("∞" if G.BAR == "█" else "inf"))
+                ctx["round_label"] = "round %d/%s" % (
+                    idx,
+                    count if count else ("∞" if G.BAR == "█" else "inf"),
+                )
             an = analyse(rows, orphans, meta, ctx)
             hints = investigation_hints(rows, orphans, meta, ctx, an)
             tracker.add(rows, orphans, an, hints, pid)
@@ -3055,11 +3879,21 @@ def _main(argv=None):
             elif args.output == "json":
                 reports.append(report)
             elif multi and args.summary_only:
-                hottest = max((r for r in rows if r["cpu"] is not None), key=lambda r: r["cpu"], default=None)
+                hottest = max(
+                    (r for r in rows if r["cpu"] is not None),
+                    key=lambda r: r["cpu"],
+                    default=None,
+                )
                 sys.stderr.write(
                     "round %d%s  total %.1f%%  hottest %s\n"
-                    % (idx, "/%d" % count if count else "", an["total"],
-                       "%s %.1f%%" % (hottest["thread"].name, hottest["cpu"]) if hottest else "-")
+                    % (
+                        idx,
+                        "/%d" % count if count else "",
+                        an["total"],
+                        "%s %.1f%%" % (hottest["thread"].name, hottest["cpu"])
+                        if hottest
+                        else "-",
+                    )
                 )
             else:
                 if clear:

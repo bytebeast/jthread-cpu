@@ -26,24 +26,60 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOCS = os.path.join(ROOT, "docs")
 TOOL = os.path.join(ROOT, "jthread-cpu")
 
-SHOT_ARGS = ["--jstack-file", "examples/dump.txt", "--top-file", "examples/top.txt",
-             "--cpus", "8", "-n", "10", "-f", "6", "-s", "1"]
+SHOT_ARGS = [
+    "--jstack-file",
+    "examples/dump.txt",
+    "--top-file",
+    "examples/top.txt",
+    "--cpus",
+    "8",
+    "-n",
+    "10",
+    "-f",
+    "6",
+    "-s",
+    "1",
+]
 SHOT_TITLE = "~ jthread-cpu " + " ".join(a.replace("examples/", "") for a in SHOT_ARGS)
 COLUMNS = 100
 
 THEMES = {
-    "mocha": {"bg": "#1e1e2e", "bar": "#181825", "fg": "#cdd6f4", "title": "#7f849c", "shadow": "0 30px 80px rgba(0,0,0,.45)"},
-    "latte": {"bg": "#eff1f5", "bar": "#e6e9ef", "fg": "#4c4f69", "title": "#8c8fa1", "shadow": "0 30px 80px rgba(76,79,105,.25)"},
+    "mocha": {
+        "bg": "#1e1e2e",
+        "bar": "#181825",
+        "fg": "#cdd6f4",
+        "title": "#7f849c",
+        "shadow": "0 30px 80px rgba(0,0,0,.45)",
+    },
+    "latte": {
+        "bg": "#eff1f5",
+        "bar": "#e6e9ef",
+        "fg": "#4c4f69",
+        "title": "#8c8fa1",
+        "shadow": "0 30px 80px rgba(76,79,105,.25)",
+    },
 }
 
 
 def run_in_pty(argv):
     """Run the tool with a real TTY so it colours its output like a terminal."""
-    env = dict(os.environ, COLORTERM="truecolor", COLUMNS=str(COLUMNS), LINES="200", LANG="C.UTF-8")
+    env = dict(
+        os.environ,
+        COLORTERM="truecolor",
+        COLUMNS=str(COLUMNS),
+        LINES="200",
+        LANG="C.UTF-8",
+    )
     env.pop("NO_COLOR", None)
     master, slave = pty.openpty()
-    p = subprocess.Popen([sys.executable, TOOL] + argv, stdout=slave, stderr=subprocess.DEVNULL,
-                         stdin=subprocess.DEVNULL, cwd=ROOT, env=env)
+    p = subprocess.Popen(
+        [sys.executable, TOOL] + argv,
+        stdout=slave,
+        stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL,
+        cwd=ROOT,
+        env=env,
+    )
     os.close(slave)
     chunks = []
     while True:
@@ -80,7 +116,7 @@ def ansi_to_html(text):
         out.append('<span style="%s">%s</span>' % (";".join(style), s) if style else s)
 
     for m in SGR.finditer(text):
-        span(text[pos:m.start()])
+        span(text[pos : m.start()])
         pos = m.end()
         codes = [int(c) for c in m.group(1).split(";") if c] or [0]
         i = 0
@@ -91,7 +127,7 @@ def ansi_to_html(text):
             elif c == 1:
                 bold = True
             elif c in (38, 48) and i + 4 < len(codes) and codes[i + 1] == 2:
-                col = "#%02x%02x%02x" % tuple(codes[i + 2:i + 5])
+                col = "#%02x%02x%02x" % tuple(codes[i + 2 : i + 5])
                 if c == 38:
                     fg = col
                 else:
@@ -114,27 +150,116 @@ pre{margin:0;padding:18px 22px 26px;font:14px/1.42 'DejaVu Sans Mono',monospace;
 </style></head><body><div class="win" id="w"><div class="bar"><span class="dot" style="background:#f38ba8"></span>
 <span class="dot" style="background:#f9e2af"></span><span class="dot" style="background:#a6e3a1"></span>
 <div class="t">%(title_text)s</div></div><pre>%(body)s</pre></div></body></html>""" % dict(
-        t, body=body, title_text=html.escape(SHOT_TITLE))
+        t, body=body, title_text=html.escape(SHOT_TITLE)
+    )
 
 
 def preview_page(font_css):
     rows = [
-        ("94.2", "#f38ba8", 100, "61%", "8421", "8455", "0x2107", "RUNNABLE", "#a6e3a1", "http-nio-8080-exec-7", True,
-         "com.acme.order.PricingEngine.recalculate(PricingEngine.java:212)"),
-        ("41.8", "#fab387", 44, "27%", "8421", "8460", "0x210c", "RUNNABLE", "#a6e3a1", "scheduled-refresh-2", False, None),
-        ("18.3", "#f9e2af", 19, "12%", "8421", "8433", "0x20f1", "JVM_INTERNAL", "#b4befe", "GC Thread#3", False, None),
+        (
+            "94.2",
+            "#f38ba8",
+            100,
+            "61%",
+            "8421",
+            "8455",
+            "0x2107",
+            "RUNNABLE",
+            "#a6e3a1",
+            "http-nio-8080-exec-7",
+            True,
+            "com.acme.order.PricingEngine.recalculate(PricingEngine.java:212)",
+        ),
+        (
+            "41.8",
+            "#fab387",
+            44,
+            "27%",
+            "8421",
+            "8460",
+            "0x210c",
+            "RUNNABLE",
+            "#a6e3a1",
+            "scheduled-refresh-2",
+            False,
+            None,
+        ),
+        (
+            "18.3",
+            "#f9e2af",
+            19,
+            "12%",
+            "8421",
+            "8433",
+            "0x20f1",
+            "JVM_INTERNAL",
+            "#b4befe",
+            "GC Thread#3",
+            False,
+            None,
+        ),
     ]
     trs = []
     for cpu, col, w, share, pid, tid, nid, st, stc, name, bold, frame in rows:
         trs.append(
             '<tr><td class="num" style="color:%s">%s</td><td><div class="track"><div class="fill" style="width:%d%%;background:%s"></div></div></td>'
             '<td class="dim r">%s</td><td class="dim r">%s</td><td class="r">%s</td><td>%s</td><td style="color:%s">%s</td><td class="%s">%s</td></tr>'
-            % (col, cpu, w, col, share, pid, tid, nid, stc, st, "b" if bold else "", name))
+            % (
+                col,
+                cpu,
+                w,
+                col,
+                share,
+                pid,
+                tid,
+                nid,
+                stc,
+                st,
+                "b" if bold else "",
+                name,
+            )
+        )
         if frame:
-            trs.append('<tr><td></td><td colspan="7" class="dim frame">&#8627; %s</td></tr>' % html.escape(frame))
-    bars = [8, 11, 14, 6, 12, 17, 60, 44, 9, 7, 8, 10, 13, 16, 11, 34, 12, 8, 9, 7, 10, 12, 9, 8, 11, 21, 9, 7]
+            trs.append(
+                '<tr><td></td><td colspan="7" class="dim frame">&#8627; %s</td></tr>'
+                % html.escape(frame)
+            )
+    bars = [
+        8,
+        11,
+        14,
+        6,
+        12,
+        17,
+        60,
+        44,
+        9,
+        7,
+        8,
+        10,
+        13,
+        16,
+        11,
+        34,
+        12,
+        8,
+        9,
+        7,
+        10,
+        12,
+        9,
+        8,
+        11,
+        21,
+        9,
+        7,
+    ]
     colors = {6: "#f38ba8", 7: "#f38ba8", 15: "#fab387", 25: "#f9e2af"}
-    spark = "".join('<i style="height:%dpx;background:%s"></i>' % (h * 1.6, colors.get(i, "#45475a")) for i, h in enumerate(bars))
+    spark = "".join(
+        '<i style="height:%dpx;background:%s"></i>'
+        % (h * 1.6, colors.get(i, "#45475a"))
+        for i, h in enumerate(bars)
+    )
     return """<!doctype html><html><head><meta charset="utf-8"><style>%(fonts)s
 *{box-sizing:border-box}html,body{margin:0}
 body{width:1280px;height:640px;overflow:hidden;font-family:Inter,'DejaVu Sans',sans-serif;color:#cdd6f4;
@@ -178,15 +303,24 @@ th{font-weight:400;color:#7f849c;text-align:left;padding:3px 18px 3px 0}td{paddi
 
 def font_css(fonts_dir):
     if not fonts_dir:
-        return ("@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;800"
-                "&family=JetBrains+Mono:wght@400;500;600;700&display=swap');")
+        return (
+            "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;800"
+            "&family=JetBrains+Mono:wght@400;500;600;700&display=swap');"
+        )
     faces = []
-    for fam, stem, weights in (("Inter", "inter", (400, 500, 600, 700, 800)),
-                               ("JetBrains Mono", "jetbrains-mono", (400, 500, 600, 700))):
+    for fam, stem, weights in (
+        ("Inter", "inter", (400, 500, 600, 700, 800)),
+        ("JetBrains Mono", "jetbrains-mono", (400, 500, 600, 700)),
+    ):
         for w in weights:
-            path = os.path.join(os.path.abspath(fonts_dir), "%s-latin-%d-normal.woff2" % (stem, w))
+            path = os.path.join(
+                os.path.abspath(fonts_dir), "%s-latin-%d-normal.woff2" % (stem, w)
+            )
             if os.path.exists(path):
-                faces.append("@font-face{font-family:'%s';font-weight:%d;src:url('file://%s')}" % (fam, w, path))
+                faces.append(
+                    "@font-face{font-family:'%s';font-weight:%d;src:url('file://%s')}"
+                    % (fam, w, path)
+                )
     return "".join(faces)
 
 
@@ -200,18 +334,24 @@ def main():
     pages = {}
     for theme in ("mocha", "latte"):
         ansi = run_in_pty(SHOT_ARGS + ["--theme", theme])
-        pages["screenshot.png" if theme == "mocha" else "screenshot-latte.png"] = terminal_page(ansi_to_html(ansi.strip("\n")), theme)
+        pages["screenshot.png" if theme == "mocha" else "screenshot-latte.png"] = (
+            terminal_page(ansi_to_html(ansi.strip("\n")), theme)
+        )
 
     tmp = os.path.join(args.out, ".render.html")
     with sync_playwright() as p:
         b = p.chromium.launch()
         for name, page_html in pages.items():
-            pg = b.new_page(device_scale_factor=2, viewport={"width": 1100, "height": 800})
+            pg = b.new_page(
+                device_scale_factor=2, viewport={"width": 1100, "height": 800}
+            )
             with open(tmp, "w") as fh:
                 fh.write(page_html)
             pg.goto("file://" + tmp)
             pg.wait_for_timeout(200)
-            pg.locator("#w").screenshot(path=os.path.join(args.out, name), omit_background=True)
+            pg.locator("#w").screenshot(
+                path=os.path.join(args.out, name), omit_background=True
+            )
             pg.close()
         pg = b.new_page(device_scale_factor=1, viewport={"width": 1280, "height": 640})
         with open(tmp, "w") as fh:
@@ -221,7 +361,10 @@ def main():
         pg.screenshot(path=os.path.join(args.out, "jthread-cpu-social-preview.png"))
         b.close()
     os.remove(tmp)
-    print("wrote screenshot.png, screenshot-latte.png, jthread-cpu-social-preview.png to", args.out)
+    print(
+        "wrote screenshot.png, screenshot-latte.png, jthread-cpu-social-preview.png to",
+        args.out,
+    )
 
 
 if __name__ == "__main__":
