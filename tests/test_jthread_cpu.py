@@ -44,16 +44,22 @@ def run_main(*argv):
 
 def example_json(*extra):
     rc, out, _ = run_main(
-        "--jstack-file", os.path.join(EXAMPLES, "dump.txt"),
-        "--top-file", os.path.join(EXAMPLES, "top.txt"),
-        "--cpus", "8", "-o", "json", *extra
+        "--jstack-file",
+        os.path.join(EXAMPLES, "dump.txt"),
+        "--top-file",
+        os.path.join(EXAMPLES, "top.txt"),
+        "--cpus",
+        "8",
+        "-o",
+        "json",
+        *extra,
     )
     assert rc == 0, rc
     return json.loads(out)
 
 
 try:
-    import jsonschema  # noqa: F401
+    import jsonschema
 except ImportError:  # pragma: no cover
     jsonschema = None
 
@@ -69,7 +75,10 @@ class ParseTests(unittest.TestCase):
         by = {t.name: t for t in self.threads}
         w3 = by["order-worker-3"]
         self.assertEqual((w3.nid, w3.nid_hex, w3.state), (48290, "0xbca2", "RUNNABLE"))
-        self.assertEqual(w3.app_frame(), "com.acme.shop.pricing.CouponValidator.isValid(CouponValidator.java:88)")
+        self.assertEqual(
+            w3.app_frame(),
+            "com.acme.shop.pricing.CouponValidator.isValid(CouponValidator.java:88)",
+        )
         self.assertTrue(by["GC Thread#0"].is_jvm_internal)
         self.assertIn("kafka-producer-network-thread | shop-producer", by)
 
@@ -80,7 +89,9 @@ class ParseTests(unittest.TestCase):
             "   java.lang.Thread.State: WAITING (on object monitor)\n"
         )
         (t,), _ = jc.parse_jstack(text)
-        self.assertEqual((t.nid, t.nid_hex, t.nid_raw, t.jnum), (556, "0x22c", "556", 1))
+        self.assertEqual(
+            (t.nid, t.nid_hex, t.nid_raw, t.jnum), (556, "0x22c", "556", 1)
+        )
 
     def test_real_jdk21_fixture(self):
         with open(os.path.join(FIXTURES, "jdk21-dump.txt")) as fh:
@@ -91,7 +102,12 @@ class ParseTests(unittest.TestCase):
 
     def test_real_dumps_from_each_jdk(self):
         # captured with jcmd Thread.print -l from the same test program on JDK 8, 11, 21, 25
-        for jdk, hex_nid, has_cpu in (("8", True, False), ("11", True, True), ("21", False, True), ("25", False, True)):
+        for jdk, hex_nid, has_cpu in (
+            ("8", True, False),
+            ("11", True, True),
+            ("21", False, True),
+            ("25", False, True),
+        ):
             with open(os.path.join(FIXTURES, "jdk%s-dump.txt" % jdk)) as fh:
                 threads, _ = jc.parse_jstack(fh.read())
             by = {t.name: t for t in threads}
@@ -103,7 +119,9 @@ class ParseTests(unittest.TestCase):
             self.assertTrue(w.top_frame().startswith("java.util.regex."), jdk)
             locks = jc.contended_locks(jc.merge(threads, {})[0])
             self.assertEqual(locks[0]["owner"], "lock-holder-1", jdk)
-            self.assertEqual(locks[0]["waiters"], ["blocked-0", "blocked-1", "blocked-2"], jdk)
+            self.assertEqual(
+                locks[0]["waiters"], ["blocked-0", "blocked-1", "blocked-2"], jdk
+            )
 
     def test_jdk8_dump_alone_refuses_all_zero_report(self):
         rc, _, err = run_main("--jstack-file", os.path.join(FIXTURES, "jdk8-dump.txt"))
@@ -119,7 +137,12 @@ class ParseTests(unittest.TestCase):
             "\t- <0x00000000deadbeef> (a java.util.concurrent.locks.ReentrantLock$NonfairSync)\n"
         )
         (t,), _ = jc.parse_jstack(text)
-        self.assertEqual(t.locks_held, ["<0x00000000deadbeef> (a java.util.concurrent.locks.ReentrantLock$NonfairSync)"])
+        self.assertEqual(
+            t.locks_held,
+            [
+                "<0x00000000deadbeef> (a java.util.concurrent.locks.ReentrantLock$NonfairSync)"
+            ],
+        )
         self.assertEqual(t.frames, ["at a.B.c(B.java:1)"])
 
     def test_top_file_and_window(self):
@@ -150,8 +173,13 @@ class NormalisationTests(unittest.TestCase):
 
     def test_offline_without_cpus_leaves_capacity_unknown(self):
         rc, out, _ = run_main(
-            "--jstack-file", os.path.join(EXAMPLES, "dump.txt"),
-            "--top-file", os.path.join(EXAMPLES, "top.txt"), "-o", "json")
+            "--jstack-file",
+            os.path.join(EXAMPLES, "dump.txt"),
+            "--top-file",
+            os.path.join(EXAMPLES, "top.txt"),
+            "-o",
+            "json",
+        )
         d = json.loads(out)
         self.assertIsNone(d["capacity"]["capacity_cores"])
         self.assertIsNone(d["cpu"]["pct_of_capacity"])
@@ -177,25 +205,40 @@ class NormalisationTests(unittest.TestCase):
             fh.write(proc_cgroup)
         old = (jc.CGROUP_ROOT, jc.PROC_ROOT)
         jc.CGROUP_ROOT, jc.PROC_ROOT = cg, proc
-        self.addCleanup(lambda: setattr(jc, "CGROUP_ROOT", old[0]) or setattr(jc, "PROC_ROOT", old[1]))
+        self.addCleanup(
+            lambda: (
+                setattr(jc, "CGROUP_ROOT", old[0]) or setattr(jc, "PROC_ROOT", old[1])
+            )
+        )
 
     def test_cgroup_v2_tightest_ancestor_wins(self):
         self._fake_cgroup(
-            {"cpu.max": "max 100000", "kubepods/cpu.max": "max 100000",
-             "kubepods/pod1/cpu.max": "400000 100000", "kubepods/pod1/ctr/cpu.max": "150000 100000"},
-            "0::/kubepods/pod1/ctr\n")
+            {
+                "cpu.max": "max 100000",
+                "kubepods/cpu.max": "max 100000",
+                "kubepods/pod1/cpu.max": "400000 100000",
+                "kubepods/pod1/ctr/cpu.max": "150000 100000",
+            },
+            "0::/kubepods/pod1/ctr\n",
+        )
         self.assertEqual(jc._cgroup_quota_cores(77), 1.5)
 
     def test_cgroup_v2_unlimited(self):
-        self._fake_cgroup({"cpu.max": "max 100000", "a/cpu.max": "max 100000"}, "0::/a\n")
+        self._fake_cgroup(
+            {"cpu.max": "max 100000", "a/cpu.max": "max 100000"}, "0::/a\n"
+        )
         self.assertIsNone(jc._cgroup_quota_cores(77))
 
     def test_cgroup_v1(self):
         self._fake_cgroup(
-            {"cpu,cpuacct/cpu.cfs_quota_us": "-1", "cpu,cpuacct/cpu.cfs_period_us": "100000",
-             "cpu,cpuacct/docker/abc/cpu.cfs_quota_us": "200000",
-             "cpu,cpuacct/docker/abc/cpu.cfs_period_us": "100000"},
-            "4:cpu,cpuacct:/docker/abc\n3:memory:/docker/abc\n")
+            {
+                "cpu,cpuacct/cpu.cfs_quota_us": "-1",
+                "cpu,cpuacct/cpu.cfs_period_us": "100000",
+                "cpu,cpuacct/docker/abc/cpu.cfs_quota_us": "200000",
+                "cpu,cpuacct/docker/abc/cpu.cfs_period_us": "100000",
+            },
+            "4:cpu,cpuacct:/docker/abc\n3:memory:/docker/abc\n",
+        )
         self.assertEqual(jc._cgroup_quota_cores(77), 2.0)
 
     def test_cgroup_other_namespace_falls_back_to_own(self):
@@ -214,10 +257,18 @@ class HintTests(unittest.TestCase):
         a = example_json()["hints"]
         b = example_json()["hints"]
         self.assertEqual(a, b)
-        self.assertEqual([h["id"] for h in a], ["LOCK_CONTENTION", "REGEX_BACKTRACKING", "SELECTOR_SPIN"])
+        self.assertEqual(
+            [h["id"] for h in a],
+            ["LOCK_CONTENTION", "REGEX_BACKTRACKING", "SELECTOR_SPIN"],
+        )
         lock = a[0]
         self.assertIn("order-worker-4", lock["threads"])
-        self.assertTrue(any("StockLedger.reserve(StockLedger.java:81)" in e for e in lock["evidence"]))
+        self.assertTrue(
+            any(
+                "StockLedger.reserve(StockLedger.java:81)" in e
+                for e in lock["evidence"]
+            )
+        )
         regex = a[1]
         self.assertTrue(any("CouponValidator.java:88" in e for e in regex["evidence"]))
 
@@ -253,9 +304,19 @@ class HintTests(unittest.TestCase):
         )
         threads, meta = jc.parse_jstack(text)
         self.assertEqual(len(threads), 2)
-        rows, orphans = jc.merge(threads, {0x10: {"cpu": 0.0, "comm": "a", "time": "", "state": "", "mem_pct": ""},
-                                           0x11: {"cpu": 0.0, "comm": "b", "time": "", "state": "", "mem_pct": ""}})
-        ctx = {"pid": 1, "capacity": {"capacity": 4.0}, "window": 2.0, "method_id": "top"}
+        rows, orphans = jc.merge(
+            threads,
+            {
+                0x10: {"cpu": 0.0, "comm": "a", "time": "", "state": "", "mem_pct": ""},
+                0x11: {"cpu": 0.0, "comm": "b", "time": "", "state": "", "mem_pct": ""},
+            },
+        )
+        ctx = {
+            "pid": 1,
+            "capacity": {"capacity": 4.0},
+            "window": 2.0,
+            "method_id": "top",
+        }
         an = jc.analyse(rows, orphans, meta, ctx)
         hints = jc.investigation_hints(rows, orphans, meta, ctx, an)
         self.assertEqual(hints[0]["id"], "DEADLOCK")
@@ -283,8 +344,10 @@ class RepeatedSamplingTests(unittest.TestCase):
         loop = self._thread("spinner", 10, "com.x.Loop.run(Loop.java:5)")
         burst = self._thread("bursty", 11, "com.x.Job.run(Job.java:9)")
         for cpu_b in (0.0, 95.0, 0.0, 0.0):
-            rows = [{"thread": loop, "cpu": 99.0, "sample": None},
-                    {"thread": burst, "cpu": cpu_b, "sample": None}]
+            rows = [
+                {"thread": loop, "cpu": 99.0, "sample": None},
+                {"thread": burst, "cpu": cpu_b, "sample": None},
+            ]
             tr.add(rows, {}, {"total": 99.0 + cpu_b}, [], 42)
         s = tr.summary()
         self.assertEqual(s["rounds"], 4)
@@ -293,23 +356,40 @@ class RepeatedSamplingTests(unittest.TestCase):
         self.assertEqual(by["spinner"]["rounds_hot"], 4)
         self.assertEqual(by["bursty"]["classification"], "spike")
         self.assertEqual(by["bursty"]["series"], [0.0, 95.0, 0.0, 0.0])
-        self.assertEqual([h["id"] for h in s["hints"]], ["PERSISTENT_LOOP", "BURSTY_THREAD"])
+        self.assertEqual(
+            [h["id"] for h in s["hints"]], ["PERSISTENT_LOOP", "BURSTY_THREAD"]
+        )
 
     def test_threads_appearing_later_are_padded(self):
         tr = jc.Tracker(25.0)
         a = self._thread("a", 1, "x.A.a(A.java:1)")
         b = self._thread("b", 2, "x.B.b(B.java:1)")
         tr.add([{"thread": a, "cpu": 50.0, "sample": None}], {}, {"total": 50.0}, [], 1)
-        tr.add([{"thread": a, "cpu": 50.0, "sample": None}, {"thread": b, "cpu": 60.0, "sample": None}],
-               {}, {"total": 110.0}, [], 1)
+        tr.add(
+            [
+                {"thread": a, "cpu": 50.0, "sample": None},
+                {"thread": b, "cpu": 60.0, "sample": None},
+            ],
+            {},
+            {"total": 110.0},
+            [],
+            1,
+        )
         by = {t["name"]: t for t in tr.summary()["threads"]}
         self.assertEqual(by["b"]["series"], [None, 60.0])
         self.assertEqual(by["b"]["avg_cpu_pct"], 30.0)
 
     def test_offline_ignores_count(self):
         rc, out, err = run_main(
-            "--jstack-file", os.path.join(EXAMPLES, "dump.txt"),
-            "--top-file", os.path.join(EXAMPLES, "top.txt"), "-c", "3", "-o", "json")
+            "--jstack-file",
+            os.path.join(EXAMPLES, "dump.txt"),
+            "--top-file",
+            os.path.join(EXAMPLES, "top.txt"),
+            "-c",
+            "3",
+            "-o",
+            "json",
+        )
         self.assertEqual(rc, 0)
         self.assertIn("--count/--watch need a live JVM", err)
         self.assertEqual(json.loads(out)["kind"], "report")
@@ -323,17 +403,41 @@ class SchemaTests(unittest.TestCase):
     def test_versions_line_up(self):
         s = jc.json_schema()
         self.assertEqual(s["x-schema-version"], jc.SCHEMA_VERSION)
-        self.assertTrue(s["$id"].endswith("-v%s.schema.json" % jc.SCHEMA_VERSION.split(".")[0]))
+        self.assertTrue(
+            s["$id"].endswith("-v%s.schema.json" % jc.SCHEMA_VERSION.split(".")[0])
+        )
         self.assertEqual(example_json()["schema_version"], jc.SCHEMA_VERSION)
 
     def test_legacy_fields_still_present(self):
         d = example_json()
-        for key in ("generated_at", "pid", "cmdline", "method", "sample_window_s", "cpu_count", "ppid",
-                    "process", "deadlocks", "deadlock_stacks", "total_thread_cpu_pct", "threads",
-                    "unmatched_native_threads"):
+        for key in (
+            "generated_at",
+            "pid",
+            "cmdline",
+            "method",
+            "sample_window_s",
+            "cpu_count",
+            "ppid",
+            "process",
+            "deadlocks",
+            "deadlock_stacks",
+            "total_thread_cpu_pct",
+            "threads",
+            "unmatched_native_threads",
+        ):
             self.assertIn(key, d)
-        for key in ("name", "os_tid", "nid", "nid_hex", "state", "cpu_pct", "top_frame", "stack",
-                    "locks_held", "waiting_on"):
+        for key in (
+            "name",
+            "os_tid",
+            "nid",
+            "nid_hex",
+            "state",
+            "cpu_pct",
+            "top_frame",
+            "stack",
+            "locks_held",
+            "waiting_on",
+        ):
             self.assertIn(key, d["threads"][0])
 
     @unittest.skipIf(jsonschema is None, "jsonschema not installed")
@@ -342,10 +446,18 @@ class SchemaTests(unittest.TestCase):
         jsonschema.Draft202012Validator.check_schema(schema)
         v = jsonschema.Draft202012Validator(schema)
         docs = [example_json(), example_json("--no-hints")]
-        rc, out, _ = run_main("--jstack-file", os.path.join(EXAMPLES, "dump.txt"), "-o", "json")
+        rc, out, _ = run_main(
+            "--jstack-file", os.path.join(EXAMPLES, "dump.txt"), "-o", "json"
+        )
         docs.append(json.loads(out))
-        rc, out, _ = run_main("--jstack-file", os.path.join(FIXTURES, "jdk21-dump.txt"),
-                              "--top-file", os.path.join(FIXTURES, "jdk21-top.txt"), "-o", "jsonl")
+        rc, out, _ = run_main(
+            "--jstack-file",
+            os.path.join(FIXTURES, "jdk21-dump.txt"),
+            "--top-file",
+            os.path.join(FIXTURES, "jdk21-top.txt"),
+            "-o",
+            "jsonl",
+        )
         docs.append(json.loads(out))
         tr = jc.Tracker(25.0)
         tr.add([], {5: {"cpu": 80.0, "comm": "x"}}, {"total": 80.0}, [], None)
@@ -358,12 +470,27 @@ class SchemaTests(unittest.TestCase):
 class TextOutputTests(unittest.TestCase):
     def test_text_report_sections(self):
         rc, out, _ = run_main(
-            "--jstack-file", os.path.join(EXAMPLES, "dump.txt"),
-            "--top-file", os.path.join(EXAMPLES, "top.txt"), "--cpus", "8", "--no-color")
+            "--jstack-file",
+            os.path.join(EXAMPLES, "dump.txt"),
+            "--top-file",
+            os.path.join(EXAMPLES, "top.txt"),
+            "--cpus",
+            "8",
+            "--no-color",
+        )
         self.assertEqual(rc, 0)
-        for s in ("HOTTEST THREADS", "NOT IN THREAD DUMP", "CPU BY THREAD GROUP", "THREAD STATES",
-                  "BLOCKED THREADS", "STACKS OF THE HOTTEST THREADS", "NEXT STEPS",
-                  "221.7% = 2.22 cores", "27.7% of capacity", "window: 2.0s"):
+        for s in (
+            "HOTTEST THREADS",
+            "NOT IN THREAD DUMP",
+            "CPU BY THREAD GROUP",
+            "THREAD STATES",
+            "BLOCKED THREADS",
+            "STACKS OF THE HOTTEST THREADS",
+            "NEXT STEPS",
+            "221.7% = 2.22 cores",
+            "27.7% of capacity",
+            "window: 2.0s",
+        ):
             self.assertIn(s, out)
         self.assertNotIn("\033[", out)
 
