@@ -20,6 +20,39 @@
 
 ---
 
+## Quick start ⚡
+
+Got a Java process burning CPU on a Linux box with a JDK and Python 3.7+? This is all you need:
+
+```bash
+# 1. grab the script (one file, no dependencies)
+curl -fsSLo jthread-cpu https://raw.githubusercontent.com/bytebeast/jthread-cpu/main/jthread-cpu
+chmod +x jthread-cpu
+
+# 2. find your JVM's PID
+./jthread-cpu --list            # or: jps -l, or: pgrep -f java
+
+# 3. see which threads are eating the CPU
+./jthread-cpu -p $PID
+```
+
+That samples for 2 seconds, takes a thread dump, and prints the hottest threads with what they're running and what to check next. If only one JVM is running, you can even skip the PID and just run `./jthread-cpu`.
+
+A few things you'll probably want next:
+
+```bash
+./jthread-cpu -p $PID -d 10           # sample for 10 s instead of 2
+./jthread-cpu -p $PID -c 6 -i 10      # 6 rounds, 10 s apart, then a "what stayed hot" summary
+./jthread-cpu -p $PID -o json         # JSON for scripts and bots
+sudo -u "$(ps -o user= -p $PID)" ./jthread-cpu -p $PID   # if you get "Operation not permitted"
+```
+
+> 🧪 **No JVM handy?** Clone the repo and try it on the bundled sample: `./jthread-cpu --jstack-file examples/dump.txt --top-file examples/top.txt --cpus 8`
+
+Missing a JDK, on macOS, or inside a container? See [Requirements](#requirements), [Installation](#installation) and [Usage and examples](#usage-and-examples).
+
+---
+
 ## So what is this? 👋
 
 It's 3am, your pager is going off, and `top` says `java` is sitting at 400% CPU. Cool. *Which* of its 200 threads though?
@@ -43,6 +76,7 @@ It's **one Python file that only uses the standard library.** Copy it onto a box
 
 ## Table of contents
 
+- [Quick start](#quick-start-)
 - [Requirements](#requirements)
 - [Compatibility matrix](#compatibility-matrix)
 - [Installation](#installation)
